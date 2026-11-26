@@ -1,0 +1,236 @@
+{
+  "schema_version": 1,
+  "project_template": {
+    "id": "thinkphp-public-site-vue-admin-warehouse-mysql84",
+    "name": "云仓商品与库存管理平台",
+    "status": "ready-for-generation",
+    "reference_summary": "参考用户提供的云仓首页截图：品牌导航、产品介绍、进入管理后台入口、核心功能卡片。"
+  },
+  "stack": {
+    "backend": {
+      "language": "PHP",
+      "version": "8",
+      "framework": "ThinkPHP",
+      "framework_version": "8"
+    },
+    "database": {
+      "engine": "MySQL",
+      "version": "8.4",
+      "host": "127.0.0.1",
+      "port": 3306,
+      "database_name": "yun_cang",
+      "application_user": "yun_cang_app",
+      "password_source": "local .env only; never put a real password in generated files"
+    }
+  },
+  "architecture": {
+    "public_site": {
+      "renderer": "ThinkPHP server-rendered templates",
+      "routes": [
+        "/",
+        "/help",
+        "/contact"
+      ],
+      "admin_entry": {
+        "label": "进入管理后台",
+        "path": "/admin/login"
+      },
+      "content_rules": [
+        "The public homepage must not show a signed-in user's name, avatar, account details, or private user data.",
+        "Show four real aggregate statistics computed from the MySQL data: total products, category count, on-sale products, and low-stock warning count. These must not be hard-coded demo values.",
+        "Public rendering may read aggregate counts only; never expose product rows, SKU values, exact stock quantities, admin data, or arbitrary filters through a public endpoint.",
+        "The low-stock warning count is intentionally public per the user's request; document that this reveals an aggregate inventory signal.",
+        "Help and contact can be simple public template pages."
+      ],
+      "public_statistics": {
+        "source": "live aggregate queries over MySQL data",
+        "refresh": "render from current database values on page request; optional short cache only if documented",
+        "cards": [
+          {
+            "label": "商品总数",
+            "definition": "count of existing products"
+          },
+          {
+            "label": "商品分类",
+            "definition": "count of existing categories"
+          },
+          {
+            "label": "在售商品",
+            "definition": "count of products with status on_sale"
+          },
+          {
+            "label": "库存预警",
+            "definition": "count of products whose stock_quantity <= warning_threshold"
+          }
+        ],
+        "empty_state": "show 0 when there is no matching data"
+      }
+    },
+    "admin": {
+      "renderer": "Vue 3 SPA",
+      "build_tool": "Vite 5",
+      "component_library": "Element Plus 2.13.2",
+      "route_prefix": "/admin",
+      "api_prefix": "/api/admin",
+      "authentication": {
+        "login": "required",
+        "self_service_registration": "disabled; no registration page, route, or API",
+        "session": "same-origin server-side session cookie with HttpOnly and SameSite protections",
+        "csrf": "protect state-changing authenticated requests",
+        "protected_routes": [
+          "/admin/** except login",
+          "/api/admin/**"
+        ]
+      }
+    },
+    "backend": {
+      "framework": "ThinkPHP 8",
+      "responsibility": "render public templates, serve authenticated JSON admin APIs, enforce validation and business rules, and access MySQL"
+    }
+  },
+  "authentication": {
+    "admin_login": "required",
+    "public_registration": "disabled",
+    "initial_admin": "one-time local CLI bootstrap only when no admin exists; prompt for password without echo; never include default credentials",
+    "password_storage": "PHP password_hash with PASSWORD_DEFAULT; verify with password_verify; never store or log plaintext",
+    "login_safety": [
+      "generic invalid-credentials response",
+      "basic login attempt throttling",
+      "rotate session id after login",
+      "invalidate session on logout"
+    ]
+  },
+  "modules": {
+    "dashboard": [
+      "total products",
+      "category count",
+      "on-sale products",
+      "low-stock warnings"
+    ],
+    "products": {
+      "scope": [
+        "create",
+        "list",
+        "edit",
+        "delete",
+        "search by name",
+        "filter by category",
+        "filter by status",
+        "pagination"
+      ],
+      "create_form": {
+        "required_fields": [
+          "name"
+        ],
+        "category_field": "database-backed select",
+        "default_category": "system setting default_category_id"
+      },
+      "list_columns": [
+        "product name",
+        "category",
+        "price",
+        "stock",
+        "status",
+        "actions"
+      ],
+      "page_size": 10,
+      "status_display_rule": "stock quantity 0 displays 缺货; otherwise use the configured product state label"
+    },
+    "categories": {
+      "initial_seed_values": [
+        "数码配件",
+        "电脑外设",
+        "影音设备",
+        "显示设备",
+        "智能家居",
+        "网络设备"
+      ],
+      "usage": [
+        "product create/edit dropdown",
+        "product list category filter",
+        "system default category setting"
+      ],
+      "source_of_truth": "MySQL categories table; do not hard-code category options in Vue components",
+      "management_ui": "No separate category-management page is specified by the supplied screenshots; keep this list seeded and database-backed unless the user requests category CRUD."
+    },
+    "inventory": [
+      "show current stock",
+      "configurable low-stock threshold",
+      "stock adjustment with reason/history"
+    ],
+    "settings": [
+      "store/platform name",
+      "default warning threshold",
+      "notification toggle"
+    ],
+    "public_stats": [
+      "live aggregate counts only",
+      "no hard-coded demo numbers",
+      "no product-level or user-level data"
+    ]
+  },
+  "data_model": {
+    "tables": [
+      "admins",
+      "categories",
+      "products",
+      "stock_movements",
+      "settings"
+    ],
+    "product_fields": [
+      "id",
+      "sku",
+      "name",
+      "category_id",
+      "description",
+      "stock_quantity",
+      "warning_threshold",
+      "status",
+      "created_at",
+      "updated_at"
+    ],
+    "status_values": [
+      "draft",
+      "on_sale",
+      "off_sale"
+    ],
+    "rules": [
+      "SKU unique",
+      "stock quantity cannot become negative",
+      "stock adjustments create a movement record",
+      "low stock means stock_quantity <= warning_threshold"
+    ],
+    "category_seed_values": [
+      "数码配件",
+      "电脑外设",
+      "影音设备",
+      "显示设备",
+      "智能家居",
+      "网络设备"
+    ],
+    "category_fields": [
+      "id",
+      "name",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "safety": [
+    "Do not include or echo the database root password supplied in chat.",
+    "Generate .env.example with placeholders only; never generate a real .env file.",
+    "Do not connect to, create, migrate, or modify a database during generation.",
+    "Do not install packages or run shell commands; only print manual next steps.",
+    "Do not generate default admin credentials or public registration."
+  ],
+  "settings": {
+    "default_category_id": {
+      "source": "categories table",
+      "initial_value": "数码配件"
+    },
+    "rules": [
+      "Persist default_category_id in MySQL settings.",
+      "Use this value as the initial selection when creating a product.",
+      "If the saved default category is unavailable, choose the first active category and show a safe fallback."
+    ]
+  }
+}

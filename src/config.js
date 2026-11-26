@@ -28,5 +28,14 @@ export function getModelConfig() {
   if (!baseUrl) missing.push('VIBE_BASE_URL');
   if (!model || model.startsWith('replace-with-')) missing.push('VIBE_MODEL');
   if (!apiKey || apiKey.startsWith('replace-with-')) missing.push('VIBE_API_KEY');
-  return { baseUrl, model, apiKey, missing };
+  const rawMaxTokens = process.env.VIBE_MAX_OUTPUT_TOKENS?.trim();
+  const maxOutputTokens = rawMaxTokens ? Number(rawMaxTokens) : 32000;
+  if (!Number.isInteger(maxOutputTokens) || maxOutputTokens < 1024 || maxOutputTokens > 65536) {
+    throw new Error('VIBE_MAX_OUTPUT_TOKENS 必须是 1024 到 65536 之间的整数。');
+  }
+  const thinking = process.env.VIBE_THINKING?.trim().toLowerCase();
+  if (thinking && !['enabled', 'disabled'].includes(thinking)) {
+    throw new Error('VIBE_THINKING 只能是 enabled 或 disabled。');
+  }
+  return { baseUrl, model, apiKey, missing, maxOutputTokens, thinking };
 }

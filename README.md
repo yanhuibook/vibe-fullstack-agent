@@ -1,6 +1,6 @@
-# Vibe 全栈开发助手原型 0.1
+# Vibe 全栈开发助手原型 0.8
 
-一个本地 CLI 原型：读取有限的项目上下文，调用 OpenAI-compatible Chat Completions 接口生成计划和统一 diff；只有用户输入 `APPLY` 才尝试应用补丁。它不会自动运行测试或 shell 命令。
+一个本地 CLI 原型，包含已有项目补丁模式和新项目初始化模式：前者需输入 `APPLY` 才应用补丁，后者需输入 `CREATE` 才写入新目录。它调用 OpenAI-compatible Chat Completions 接口生成内容，不会自动运行测试、数据库操作或 shell 命令。
 
 ## 环境
 
@@ -49,14 +49,38 @@
 - 测试、构建、安装依赖和部署均由用户在 VS Code 终端手动执行。
 - 提示词不是安全边界；不要在没有文件系统隔离的环境中运行不可信代码。此原型不执行模型生成的 shell 命令。
 
+## 管理员账号与注册策略
+
+- 管理后台需要登录；公开网站页面不要求登录。
+- 不生成自助注册页面、路由或 API；管理员账号通过一次性本地初始化流程创建。
+- 不生成默认管理员账号或密码。管理员密码应只在本地输入，并使用 PHP `password_hash` 存储哈希。
+- 管理后台使用服务端会话；商品与库存 API 需要登录，并保护修改操作。
+- 生成器不会执行初始化命令；请先审阅项目内 README，再在本机操作。
+
 ## 配置
 
 `.env` 示例：
 
 ```dotenv
-VIBE_BASE_URL=https://api.openai.com/v1
-VIBE_MODEL=你的模型名
-VIBE_API_KEY=你的密钥
+VIBE_BASE_URL=https://api.deepseek.com
+VIBE_MODEL=deepseek-flash
+VIBE_API_KEY=你的DeepSeek_API密钥
+VIBE_MAX_OUTPUT_TOKENS=32000
+VIBE_THINKING=disabled
 ```
 
-如使用其他供应商，应填写其 OpenAI-compatible API 根地址。不同供应商的兼容性可能不同；模型调用失败时先核对供应商文档中的 API 地址和模型 ID。
+如使用其他供应商，应填写其 OpenAI-compatible API 根地址，并确认是否支持 `max_tokens` 和 `thinking` 字段；不支持 `thinking` 时删除 `VIBE_THINKING`。`VIBE_MAX_OUTPUT_TOKENS` 限制单次响应输出 token，默认 32000，可设置为 1024–65536；达到上限时 JSON 可能截断。每次模型调用结束后，CLI 会显示输入/输出 token 和 DeepSeek Flash/V4 Pro 的高峰、非高峰费用估算。费用估算基于程序内置价格表，不是美元消费硬上限，价格变化后需更新程序。
+
+## 新建云仓商品库存管理项目（原型 0.8）
+
+配置好 `.env` 后，在 VS Code 终端运行：
+
+```bash
+npm start -- --init ../yun-cang
+```
+
+该模式使用 `profiles/warehouse-mysql84.json` 作为固定需求，生成 ThinkPHP 模板公开站 + ThinkPHP JSON API + Vue 3/Vite 5/Element Plus 2.13.2 管理后台 + MySQL 8.4 的商品库存管理项目文件。它只接受新目录或空目录，预览文件列表后必须输入 `CREATE` 才写入。
+
+公开首页由 ThinkPHP 模板渲染，展示平台介绍、核心功能、来自 MySQL 的真实聚合统计卡片和“进入管理后台”按钮（跳转 `/admin/login`）；统计卡片为商品总数、商品分类、在售商品、库存预警，不显示用户姓名、头像、账户信息、SKU 或单个商品库存明细。帮助中心和联系我们也是公开模板页面。管理后台由 Vue SPA 实现，必须登录且不开放自助注册；后台包括仪表盘、商品、库存预警和系统设置。新增商品的分类下拉读取 MySQL 分类表，初始分类为：数码配件、电脑外设、影音设备、显示设备、智能家居、网络设备；默认分类由系统设置决定。数据库名默认 `yun_cang`，连接地址使用本机 `127.0.0.1:3306`。
+
+**凭据安全：** 不要把数据库 root 密码放进提示词、生成文件或版本库。聊天里出现过的数据库密码建议更换；在本地 MySQL 创建仅访问 `yun_cang` 数据库的应用用户，并在生成项目的本机 `.env` 中填写。CLI 根目录的 `.env` 保存模型服务配置；生成项目只提供 `.env.example` 占位文件，不创建真实 `.env`。原型不会连接数据库、执行迁移、安装依赖或运行命令；这些步骤由你审阅 README 后在 VS Code 终端手动完成。数据库用户/密码不会发送给模型。

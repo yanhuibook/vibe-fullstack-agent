@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "project_template": {
+    "id": "thinkphp8-public-templates-vue-admin-mysql84-todo",
+    "name": "ThinkPHP 模板前台 + Vue 管理后台 + 待办事项",
+    "status": "ready-for-generation"
+  },
+  "stack": {
+    "backend": {
+      "language": "PHP",
+      "version": "8",
+      "framework": "ThinkPHP",
+      "framework_version": "8"
+    },
+    "database": {
+      "engine": "MySQL",
+      "version": "8.4",
+      "host": "127.0.0.1",
+      "port": 3306,
+      "database_name": "todo_app",
+      "application_user": "todo_app",
+      "password_source": "local .env only; never put a real password in generated files"
+    }
+  },
+  "architecture": {
+    "public_site": {
+      "renderer": "ThinkPHP server-rendered templates",
+      "responsibility": "public pages such as home and content pages",
+      "rule": "Do not turn the public site into a Vue SPA unless the user explicitly requests it."
+    },
+    "admin": {
+      "renderer": "Vue 3 SPA",
+      "build_tool": "Vite 5",
+      "component_library": "Element Plus 2.13.2",
+      "responsibility": "internal management UI, including the Todo feature",
+      "api_prefix": "/api",
+      "authentication": {
+        "login": "required",
+        "self_service_registration": "disabled; do not create registration UI, page, route, or API",
+        "session": "same-origin server-side session cookie with HttpOnly and SameSite protections",
+        "csrf": "protect state-changing authenticated requests",
+        "protected_routes": [
+          "/admin/** except login",
+          "/api/todos/**"
+        ]
+      }
+    },
+    "backend": {
+      "framework": "ThinkPHP 8",
+      "responsibility": "server-rendered public routes, JSON API, business logic, validation, and MySQL access"
+    }
+  },
+  "feature": {
+    "name": "待办事项",
+    "location": "admin SPA only",
+    "scope": [
+      "新增",
+      "列表",
+      "编辑",
+      "完成/取消完成",
+      "删除",
+      "按状态筛选"
+    ],
+    "fields": [
+      {
+        "name": "id",
+        "type": "unsigned bigint primary key auto increment"
+      },
+      {
+        "name": "title",
+        "type": "varchar(200), required"
+      },
+      {
+        "name": "description",
+        "type": "text, nullable"
+      },
+      {
+        "name": "status",
+        "type": "tinyint unsigned, 0=pending, 1=completed"
+      },
+      {
+        "name": "created_at",
+        "type": "datetime"
+      },
+      {
+        "name": "updated_at",
+        "type": "datetime"
+      }
+    ],
+    "authentication": "admin login required; no public/self-service registration"
+  },
+  "safety": [
+    "Do not include or echo the database root password supplied in chat.",
+    "Generate .env.example with placeholders only; never generate a real .env file.",
+    "Do not connect to, create, migrate, or modify a database during generation.",
+    "Do not install packages or run shell commands; only print manual next steps."
+  ],
+  "authentication": {
+    "admin_login": "required",
+    "public_registration": "disabled",
+    "initial_admin": "one-time local CLI bootstrap; only when no admin exists; prompt for password without echo; never include default credentials",
+    "password_storage": "PHP password_hash with PASSWORD_DEFAULT; verify with password_verify; never store or log plaintext",
+    "login_safety": [
+      "generic invalid-credentials response",
+      "basic login attempt throttling",
+      "session id rotation after login",
+      "logout invalidates session"
+    ]
+  }
+}
