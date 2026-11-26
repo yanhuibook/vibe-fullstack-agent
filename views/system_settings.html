@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Settings</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .container { width: 80%; margin: 0 auto; }
+        .card { border: 1px solid #ddd; padding: 20px; margin-bottom: 20px; }
+        .card h2 { margin-top: 0; }
+        .form-group { margin-bottom: 10px; }
+        .form-group label { display: block; }
+        .form-group input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .button { display: block; width: 100%; padding: 10px; background-color: #007bff; color: white; text-align: center; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h2>System Settings</h2>
+            <form>
+                <div class="form-group">
+                    <label for="platformName">Platform Name</label>
+                    <input type="text" id="platformName" name="platformName" required>
+                </div>
+                <div class="form-group">
+                    <label for="warningThreshold">Warning Threshold</label>
+                    <input type="number" id="warningThreshold" name="warningThreshold" required>
+                </div>
+                <div class="form-group">
+                    <label for="operationLogRetentionDays">Operation Log Retention Days</label>
+                    <input type="number" id="operationLogRetentionDays" name="operationLogRetentionDays" required>
+                </div>
+                <div class="form-group">
+                    <label for="lowStockEmailEnabled">Low Stock Email Enabled</label>
+                    <input type="checkbox" id="lowStockEmailEnabled" name="lowStockEmailEnabled">
+                </div>
+                <div class="form-group">
+                    <label for="lowStockEmailRecipients">Low Stock Email Recipients</label>
+                    <input type="text" id="lowStockEmailRecipients" name="lowStockEmailRecipients">
+                </div>
+                <div class="form-group">
+                    <label for="lowStockEmailSendTime">Low Stock Email Send Time</label>
+                    <input type="time" id="lowStockEmailSendTime" name="lowStockEmailSendTime">
+                </div>
+                <button type="submit" class="button">Save Settings</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

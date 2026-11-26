@@ -158,11 +158,21 @@
       "configurable low-stock threshold",
       "stock adjustment with reason/history"
     ],
-    "settings": [
-      "store/platform name",
-      "default warning threshold",
-      "notification toggle"
-    ],
+    "settings": {
+      "scope": [
+        "store/platform name",
+        "default warning threshold",
+        "notification toggle",
+        "operation log retention days",
+        "daily low-stock email at 09:00",
+        "save and restore defaults"
+      ],
+      "save_and_restore_defaults": {
+        "save": "persist every settings value as a keyed row in the settings table",
+        "restore_defaults": "reset every settings row to its documented default value; never delete categories, products, stock movements, or admins",
+        "confirmation": "restore defaults requires a second explicit confirmation in the admin UI before applying"
+      }
+    },
     "public_stats": [
       "live aggregate counts only",
       "no hard-coded demo numbers",
@@ -175,7 +185,8 @@
       "categories",
       "products",
       "stock_movements",
-      "settings"
+      "settings",
+      "operation_logs"
     ],
     "product_fields": [
       "id",
@@ -213,6 +224,22 @@
       "name",
       "created_at",
       "updated_at"
+    ],
+    "operation_log_fields": [
+      "id",
+      "admin_id",
+      "action",
+      "target_type",
+      "target_id",
+      "detail",
+      "ip",
+      "created_at"
+    ],
+    "operation_log_rules": [
+      "append a row on every authenticated state-changing admin action (create, update, delete, stock adjustment, settings save, settings restore)",
+      "detail stores a short JSON summary of the change; never store passwords, tokens, or full request bodies",
+      "retention is controlled by the operation_log_retention_days setting",
+      "a scheduled cleanup deletes rows older than the retention window"
     ]
   },
   "safety": [
@@ -220,7 +247,8 @@
     "Generate .env.example with placeholders only; never generate a real .env file.",
     "Do not connect to, create, migrate, or modify a database during generation.",
     "Do not install packages or run shell commands; only print manual next steps.",
-    "Do not generate default admin credentials or public registration."
+    "Do not generate default admin credentials or public registration.",
+    "Do not put SMTP passwords, mail tokens, API keys, or database passwords in generated files; mail credentials live only in the local project .env and are referenced by placeholder variable names."
   ],
   "settings": {
     "default_category_id": {
@@ -231,6 +259,48 @@
       "Persist default_category_id in MySQL settings.",
       "Use this value as the initial selection when creating a product.",
       "If the saved default category is unavailable, choose the first active category and show a safe fallback."
+    ]
+  },
+  "system_settings": {
+    "storage": "key/value rows in the MySQL settings table; one row per setting key",
+    "fields": [
+      { "key": "platform_name", "type": "string", "default": "云仓商品库存管理平台", "description": "store/platform display name shown on the public site header and admin title" },
+      { "key": "default_warning_threshold", "type": "integer", "default": 10, "description": "low-stock threshold applied to a product when its own threshold is unset" },
+      { "key": "notification_enabled", "type": "boolean", "default": false, "description": "master switch for low-stock email notifications" },
+      { "key": "default_category_id", "type": "integer", "default": "id of 数码配件", "description": "initial category selection on the product create form" },
+      { "key": "operation_log_retention_days", "type": "integer", "default": 90, "description": "operation log rows older than this are deleted by the scheduled cleanup" },
+      { "key": "low_stock_email_enabled", "type": "boolean", "default": false, "description": "send the daily low-stock summary email when true and notification_enabled is true" },
+      { "key": "low_stock_email_recipients", "type": "string", "default": "", "description": "comma-separated recipient email addresses; empty means no recipient and the mail is skipped" },
+      { "key": "low_stock_email_send_time", "type": "string", "default": "09:00", "description": "local time HH:mm at which the daily low-stock email is sent" }
+    ],
+    "save": "POST /api/admin/settings persists the submitted keys; validate types and ranges before writing",
+    "restore_defaults": "POST /api/admin/settings/restore-defaults resets every settings row to its documented default; requires a second confirmation; logs the action to operation_logs",
+    "read": "GET /api/admin/settings returns the current values with their defaults for the restore-defaults UI"
+  },
+  "scheduled_tasks": [
+    {
+      "name": "daily-low-stock-email",
+      "time": "09:00 local",
+      "command": "php think low-stock:email",
+      "behavior": "when notification_enabled and low_stock_email_enabled are true and recipients is non-empty, query products whose stock_quantity <= warning_threshold and send one summary email listing product name, category, and current stock; skip sending when there are zero low-stock products or no recipients",
+      "safety": "never include admin data, passwords, or SMTP credentials in the email body; never write credentials to the database"
+    },
+    {
+      "name": "operation-log-cleanup",
+      "time": "03:00 local",
+      "command": "php think operation-log:cleanup",
+      "behavior": "delete operation_logs rows older than operation_log_retention_days; default 90 days"
+    }
+  ],
+  "mail": {
+    "transport": "SMTP via the ThinkPHP mailer",
+    "credentials_source": "local project .env only; never commit real SMTP passwords or API keys to the repository",
+    "env_keys": ["MAIL_HOST", "MAIL_PORT", "MAIL_USERNAME", "MAIL_PASSWORD", "MAIL_FROM_ADDRESS", "MAIL_FROM_NAME", "MAIL_ENCRYPTION"],
+    "env_example_placeholders": "MAIL_HOST=smtp.example.com / MAIL_PORT=465 / MAIL_USERNAME=replace-with-sender / MAIL_PASSWORD=replace-with-app-password / MAIL_FROM_ADDRESS=noreply@example.com / MAIL_FROM_NAME=云仓库存平台 / MAIL_ENCRYPTION=ssl",
+    "rules": [
+      "The generated project must provide .env.example with placeholders only; never a real .env.",
+      "The mailer reads credentials from env at runtime; credentials are never hard-coded in PHP source.",
+      "If MAIL_PASSWORD is empty or unset, the daily email task logs a warning and skips sending instead of crashing."
     ]
   }
 }
