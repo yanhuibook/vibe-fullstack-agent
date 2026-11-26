@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "profile": {
+    "id": "php8-thinkphp8-vite5-vue3-element-plus",
+    "name": "PHP ThinkPHP + Vue 全栈",
+    "status": "ready"
+  },
+  "stack": {
+    "backend": {
+      "language": "PHP",
+      "version": "8",
+      "framework": "ThinkPHP",
+      "framework_version": "8"
+    },
+    "frontend": {
+      "build_tool": "Vite",
+      "build_tool_version": "5",
+      "framework": "Vue",
+      "framework_version": "3",
+      "component_library": "Element Plus",
+      "component_library_version": "2.13.2"
+    }
+  },
+  "detection": {
+    "evidence_files": ["composer.json", "composer.lock", "package.json", "pnpm-lock.yaml", "package-lock.json", "yarn.lock"],
+    "rules": [
+      "Confirm actual versions from dependency manifests and lockfiles; do not infer from folder names.",
+      "If actual versions differ from this profile, report the mismatch and ask before changing dependencies.",
+      "If multiple frontend lockfiles exist, ask which package manager is authoritative."
+    ]
+  },
+  "conventions": {
+    "general": [
+      "Follow the repository's existing structure and naming.",
+      "Do not infer undocumented APIs, database schemas, or business rules.",
+      "Treat path hints as hints; inspect actual source before proposing a change."
+    ],
+    "backend_path_hints": ["app/", "route/", "config/"],
+    "backend_rules": [
+      "Inspect existing routes, controllers, services, data access, validation, authorization, and response format before editing.",
+      "For schema or migration changes, explain impact and ask for confirmation first."
+    ],
+    "frontend_path_hints": ["src/", "src/views/", "src/components/", "src/router/"],
+    "frontend_rules": [
+      "Inspect existing pages, routing, state management, API calls, and component conventions.",
+      "Reuse installed Vue and Element Plus patterns; do not assume API URLs or response fields."
+    ]
+  },
+  "commands": {
+    "discover_from": ["README", "composer.json scripts", "package.json scripts", "repository development guides"],
+    "rules": [
+      "Never invent test, lint, build, or start commands.",
+      "Show each command and its purpose and wait for user confirmation before execution.",
+      "Dependency changes, migrations, deployment, commits, and pushes require explicit confirmation."
+    ]
+  },
+  "context": {
+    "exclude_paths": [".git/**", "vendor/**", "node_modules/**", "dist/**", "build/**", "coverage/**", "storage/logs/**", ".env", "**/.env", ".env.*", "**/.env.*"],
+    "rules": [
+      "Never read or output secrets, tokens, passwords, or real environment values.",
+      "Do not bulk-read dependencies or generated output.",
+      "Do not change dependency lockfiles in this prototype."
+    ]
+  }
+}
