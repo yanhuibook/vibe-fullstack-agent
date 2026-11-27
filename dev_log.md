@@ -288,6 +288,7 @@ v0.8（P1 补丁：路由优先级 + 库存调整）
 ## 文档
 
 - 新增 **`HINDSIGHT-ARCHIVE-2026-11-27-S1-AND-ROUTE.md`**：本轮归档（S1 数据库治理 + 路由缺陷修复，含数据事故与修复、教训、S2 交接）
+- 新增 **`HANDOFF-S2-2026-11-27.md`**：S2 新会话交接（开场白、现状自检与基线数字、P1–P9 补丁拆解、已知问题、环境与沙箱限制、DoD）
 - 新增 `.backup/` 下的验证脚本与备份（`s1-smoke.ps1`、`route-smoke.ps1`、`restore-settings.sql`、迁移前 dump 等，目录已加入 `.gitignore`）
 - 更新 `RUNBOOK-yun_cang.md`：新增 6.8（S1 数据库治理）、6.9（路由与库存调整修复）；修订 6.7 待验证项；步骤 4 与「日常维护」补 `yc_` 前缀与 `php think migrate`
 - 更新 `README.md`：骨架表补 `config/database.php`；校验清单补 3 条规则（表前缀、`completeMatch`、漏前导反斜杠）；测试数 50；文档导航加本轮归档

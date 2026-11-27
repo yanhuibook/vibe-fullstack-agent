@@ -149,6 +149,7 @@ node scripts/validate-project.js ../yun_cang
 | 文档 | 用途 |
 |---|---|
 | [ARCHITECTURE-PLAN-2026-11-27.md](ARCHITECTURE-PLAN-2026-11-27.md) | **架构治理计划**：表前缀、基类体系、前端公共层、闸门、骨架化（S1–S5）。新会话从这里开始 |
+| [HANDOFF-S2-2026-11-27.md](HANDOFF-S2-2026-11-27.md) | **S2 交接**：新会话开场白、现状自检、S2 任务拆解（P1–P9）、环境与沙箱限制 |
 | [RUNBOOK-yun_cang.md](RUNBOOK-yun_cang.md) | 落地手册：环境、七步初始化、报错对照表、修复详情 |
 | [project_steps.md](project_steps.md) | 进度勾选清单 |
 | [dev_log.md](dev_log.md) | 开发日志（第一至第八阶段） |

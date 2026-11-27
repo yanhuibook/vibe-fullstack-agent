@@ -77,7 +77,7 @@
 ## 阶段 H：架构治理（ARCHITECTURE-PLAN S1–S5）
 
 - [x] **S1 数据库治理**：表前缀 `yc_`、主键升 BIGINT、补 `deleted_at`、`products.status` 改 VARCHAR(20)、RBAC 三表、`php think migrate` 迁移机制；9 张表 + 15 项接口冒烟全通过（2026-11-27）
-- [ ] S2 后端公共层（BaseController / BaseModel / BaseService / 异常与错误码 / PHPStan）
+- [ ] S2 后端公共层（BaseController / BaseModel / BaseService / 异常与错误码 / PHPStan）→ 交接见 [HANDOFF-S2-2026-11-27.md](HANDOFF-S2-2026-11-27.md)
 - [ ] S3 前端公共层（request 抽取、api 按域拆分、枚举/组件/composable、页面内聚）
 - [ ] S4 闸门（ESLint 边界规则、stylelint、verify.ps1）
 - [ ] S5 骨架化（把 S1–S4 成果写进 `src/skeleton.js`）
