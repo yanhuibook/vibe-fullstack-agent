@@ -28,23 +28,32 @@
 
 - [x] 补根目录 `think` 入口文件（`php -l` 校验通过）
 - [x] 补 `.gitignore`（覆盖 `/.env`、`/vendor/`、`/runtime/`、`/public/admin/node_modules/`、`/public/admin/dist/`）
+- [x] 补 6 个缺失的框架配置：`cache.php`、`log.php`、`view.php`、`route.php`、`cookie.php`、`lang.php`
+- [x] 视图改用 php 驱动：`config/view.php` 设 `type=php` + `view_path`；`view/index.html` 占位符改 PHP 短标签；`Index.php` 的 `fetch` 带 `.html`
 - [ ] 修正生成项目 README 的目录结构描述（`app/model/`、`app/validate/`、`template/` 未生成）
 
 ## 阶段 D：本机安装与建库
 
-- [ ] `composer install`
-- [ ] 复制 `.env.example` 为 `.env`，填写 `DB_PASSWORD`（`MAIL_*` 可先留占位）
-- [ ] root 创建数据库 `yun_cang` 与专用账号 `yun_cang_app`（不使用 root 连接）
-- [ ] `mysql -u yun_cang_app -p yun_cang < database/schema.sql`
-- [ ] `php think admin:bootstrap` 创建首个管理员（密码不回显、仅存哈希）
+- [x] `composer install`（框架 v8.1.4）
+- [x] 复制 `.env.example` 为 `.env`，填写 `DB_PASSWORD`
+- [x] 创建数据库 `yun_cang` 与专用账号 `yun_cang_app`
+- [x] 导入 `database/schema.sql`（`SHOW TABLES` 返回 6 张表）
+- [x] `php think admin:bootstrap` 已修复（原调用未定义的 `$this->ask()`，改用 `$output->ask()/askHidden()`）；非交互自测通过
+- [x] 交互式执行 `php think admin:bootstrap` 创建首个管理员（用户已完成，账号 songxian）
+- [x] 补 `app/middleware.php` 注册 `SessionInit`，修掉 `$request->session()` 空指针
+- [x] 登录/登出/csrf 路由移出鉴权组；路由改为 `[Class::class, 'method']` 数组形式
+- [x] 会话读写统一改用 `think\facade\Session`（`Request::session()` 只读）
+- [x] 鉴权链路验收：未登录 401、登录 200+csrf、`/me` 200、`/dashboard` 200、无 CSRF 写操作 419
 
 ## 阶段 E：前端构建与启动
 
-- [ ] `cd public/admin && npm install`
-- [ ] `npm run build`（产物到 `public/admin/dist`）
-- [ ] `php think run` 启动
-- [ ] 访问 `http://127.0.0.1:8000/`，确认 4 张统计卡片来自 MySQL、无硬编码
-- [ ] 访问 `/admin/login` 登录成功，确认会话与 `X-CSRF-Token` 生效
+- [x] 补 `public/router.php` 与 `public/.htaccess`（`php think run` 依赖前者）
+- [x] SPA 源码移至 `resources/admin`，`public/` 只留 `dist`
+- [x] `vite.config.js`：`base: '/admin/dist/'`、`outDir: '../../public/admin/dist'`、入口 `./src/main.js`
+- [x] `cd resources/admin && npm install && npm run build`（构建通过，产物落在 `public/admin/dist`）
+- [x] `php think run` 启动，首页 HTTP 200、统计卡片来自 MySQL（当前 `0,6,0,0`）
+- [x] `/admin/login` 返回构建产物，JS 以 `application/javascript` 返回
+- [x] `/admin/src/main.js` 不再可下载（源码已移出 web 根）
 - [ ] 后台子页面按 F5 刷新是否 404（若 404，检查 `route/app.php` 的 `/admin/<path>` 通配）
 
 ## 阶段 F：功能验收
@@ -64,8 +73,32 @@
 
 ---
 
-## 待决策事项
+## 下一步计划（按优先级）
 
-1. 是否让工具自动补齐 `think` 与 `.gitignore`（生成器侧可加入固定骨架文件）
-2. 是否补 `/api/public/stats` 公开统计接口
-3. 生成项目的 `MailService` 需选定 SMTP 库（如 PHPMailer）后自行实现发送逻辑
+### P0 功能验收（浏览器里点，需登录后操作）
+
+1. 后台子页面按 F5 是否 404 → 验证 `route/app.php` 的 `/admin/<path>` 通配；失败则改 `Route::get('/admin/<path?>')` 或改用 `miss` 路由
+2. 商品 CRUD：新增时分类下拉来自 `categories` 表、默认选中「数码配件」
+3. 库存调整：负数应被拒；成功后 `stock_movements` 增行
+4. 系统设置：保存生效；恢复默认需二次确认，且不删除分类/商品/库存/管理员
+5. 操作日志：分页可读，`detail` 为 JSON 摘要且不含密码
+
+### P1 定时任务与邮件占位
+
+6. `php think low-stock:email`：`MAIL_PASSWORD` 为空时记警告并跳过
+7. `php think operation-log:cleanup`：按 `operation_log_retention_days` 清理
+8. 配置 Windows 计划任务（09:00 与 03:00），见手册第 5 节
+
+### P2 生成器根治（已完成）
+
+9. ~~`src/init.js` 增加固定骨架注入~~ ✅ 新增 `src/skeleton.js`，14 个骨架文件由程序写入（不再依赖模型）
+10. ~~生成结果静态校验并拒绝不合规产物~~ ✅ 9 类校验，命中即中止且零写入
+11. ~~骨架清单并入完整性检查~~ ✅ 流程为 `validateGeneratedFiles → injectSkeleton → validateGeneratedStructure → CREATE 后写入`
+12. ~~扩充测试~~ ✅ `test/skeleton.test.js` 11 条；全量 41 条通过
+13. ~~事后体检工具~~ ✅ `scripts/validate-project.js <dir>`，已对 `yun_cang` 跑通并发现 `.gitignore` 缺 `/resources/admin/node_modules/`（已补）
+
+### P3 待决策
+
+13. 是否补 `GET /api/public/stats` 独立公开统计接口
+14. `MailService` 选型（如 PHPMailer）并实现真实发送
+15. 修正生成项目 README 的目录结构漂移（`app/model/`、`app/validate/`、`template/` 未生成）

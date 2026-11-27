@@ -99,14 +99,18 @@ php think admin:bootstrap
 ### 步骤 6：构建管理后台
 
 ```powershell
-cd public\admin
+cd D:\software\yun_cang\resources\admin
 npm install
 npm run build
 cd D:\software\yun_cang
 ```
 
-预期：生成 `public\admin\dist\`（含 `index.html` 与 `assets\`）。
-`vite.config.js` 的 `base` 为 `/admin/`，产物必须放在 `public/admin/dist`，否则后台会报 503。
+预期：生成 `public\admin\dist\`（含 `index.html` 与 `assets\`），且 `public/admin` 下**只有 `dist`**。
+
+要点：
+- SPA 源码在 `resources/admin`，**不在** Web 根内；`public/` 只放构建产物。把源码放进 `public/` 会导致后台任意 `/admin/*` URL 返回源码里的 `index.html`（渲染出未编译页面），同时源码和 `node_modules` 变成可下载。
+- `vite.config.js`：`base: '/admin/dist/'`、`build.outDir: '../../public/admin/dist'`（相对 `resources/admin`）。
+- 入口 `index.html` 必须写相对路径 `./src/main.js`，写成 `/admin/src/main.js` 会让 `vite build` 解析失败。
 
 > 已验证 `element-plus@2.13.2` 存在于 npm registry（peer 要求 `vue ^3.3.0`，项目用 `^3.4.0`，兼容）。
 
@@ -131,6 +135,18 @@ php think run
 | `SQLSTATE[HY000] [1045] Access denied for user` | `.env` 的 `DB_USER`/`DB_PASSWORD` 不对，或账号不存在 | 回到步骤 3 建账号并核对 `.env` |
 | `SQLSTATE[HY000] [1049] Unknown database 'yun_cang'` | 库未创建 | 回到步骤 3 |
 | `[1044] Access denied for user ... to database` | 授权没给到该库 | 重跑 `GRANT ALL PRIVILEGES ON yun_cang.*` |
+| `npm run build` 报 `Failed to resolve /admin/src/main.js from index.html` | 入口脚本写成了根绝对路径 | 改成 `./src/main.js`（见 6.3） |
+| 打包成功但后台白屏，控制台报 `Expected a JavaScript module but got text/html` | `base` 与服务位置不符，资源请求被入口控制器当 HTML 返回 | `base` 设 `/admin/dist/`（见 6.3） |
+| 后台任意 URL 都显示未编译的页面（源码里 `./src/main.js`） | SPA 源码被放在 `public/` 内 | 源码移到 `resources/admin`（见 6.3） |
+| `Call to a member function get() on null`（`Request.php` 内，由 `$request->session()` 触发） | 没有注册 `SessionInit` 全局中间件，请求上没有会话实例 | 补 `app/middleware.php`（见 6.5） |
+| 登录接口 500，日志显示 `class not exists:Api\Auth` | 路由写成字符串 `'Api\Auth/login'`，被当作字面类名 | 改数组可调用式 `[Auth::class, 'login']`（见 6.5） |
+| 登录 401，密码明明正确 | `login` 路由被放在鉴权中间件组内，请求先被拦 | 把 login/logout/csrf 移出保护组（见 6.5） |
+| 登录成功但刷新后又要求登录 | 用 `$request->session($k, $v)` 写会话，该方法只读，写入被静默丢弃 | 改用 `think\facade\Session::set()`（见 6.5） |
+| `Call to undefined method app\command\AdminBootstrap::ask()` | 模型编造了 `$this->ask()`；交互输入方法在 `Output` 上 | 用 `$output->ask($input, '...')` / `$output->askHidden($input, '...')`（见 6.4） |
+| `php think run` 启动即 `Failed opening required .../public/router.php` | 缺内置服务器路由脚本 | 补 `public/router.php` |
+| `Unable to resolve NULL driver for [think\Cache]`（或 `[think\Log]`、`[think\View]`） | `config/cache.php` / `log.php` / `view.php` 缺失，Manager 拿不到默认驱动 | 见 6.1 |
+| `Driver [Think] not supported` | ThinkPHP 8 已不内置 Think 视图驱动 | 见 6.2 |
+| 首页能打开但只显示 `{$platformName}` 这类原始占位符 | 用了 php 驱动但模板仍写 Think 语法 | 见 6.2 |
 | 后台访问返回 **503** 页面，文案“管理后台尚未构建” | 没构建前端，或缺 `public/admin/dist` | 执行步骤 6 |
 | 后台菜单可点，但子页面 **F5 刷新 404** | `route/app.php` 的 `/admin/<path>` 多段通配未生效 | 见第 6 节“待验证项” |
 | `php think` 报 `Class "app\command\..." not found` | `composer install` 未生成 autoload，或命令名拼错 | 重跑 composer install；命令见 `config/console.php` |
@@ -177,6 +193,135 @@ schtasks /Create /TN "yun_cang 低库存邮件" /SC DAILY /ST 09:00 /TR "\"D:\wa
 
 ## 6. 已知问题与待决策
 
+### 6.1 已修复：框架配置文件缺失（2026-11-27）
+
+`php think admin:bootstrap` 曾直接抛 `Unable to resolve NULL driver for [think\Cache]`。原因是生成器只产出 `app.php`、`console.php`、`database.php`、`session.php`，缺了框架必需的配置。已补齐 6 个：
+
+| 文件 | 作用 | 关键值 |
+|---|---|---|
+| `config/cache.php` | 缓存驱动 | `default => file`，路径默认 `runtime/cache` |
+| `config/log.php` | 日志渠道 | `default => file`，路径默认 `runtime/log` |
+| `config/view.php` | 视图驱动 | `type => php`，`view_path` 指向根 `view/` |
+| `config/route.php` | 路由 | 必须返回数组（`Route` 构造里 `array_merge` 收到 `null` 会抛 TypeError） |
+| `config/cookie.php` | Cookie | `Cookie::__make` 会收到 `null` → TypeError |
+| `config/lang.php` | 多语言 | `Lang` 构造收到 `null` → TypeError |
+
+判断某个配置文件是否必需的方法：
+
+```powershell
+# 找出所有 Manager 子类（Cache/View/Log/Session）
+Select-String -Path vendor\topthink\framework\src\think\*.php -Pattern 'class \w+ extends Manager'
+# 找出把配置直接塞进 array_merge 的键（缺文件即 TypeError）
+Select-String -Path vendor\topthink\framework\src\think\*.php -Pattern "array_merge\([^)]*config->get\('([a-z_]+)'\)"
+```
+
+### 6.2 已修复：模板引擎用 php 驱动（2026-11-27）
+
+ThinkPHP 8 **不再内置** `think\view\driver\Think`，框架只带 `Php` 驱动；`topthink/think-template` 只提供引擎类 `think\Template`，不提供 view 驱动，装了也白装（已移除）。当前方案：
+
+- `config/view.php`：`type => 'php'`、`view_suffix => 'html'`、`view_path => app()->getRootPath() . 'view' . DIRECTORY_SEPARATOR`
+- `view/index.html`：占位符改为 PHP 短标签 `<?= htmlspecialchars(...) ?>`、`<?= (int) ... ?>`
+- `app/controller/Index.php`：`View::fetch('index.html')` —— **必须带扩展名**，否则 php 驱动会按控制器名拼成 `view/index/index.html`
+
+渲染自测（不连库、不开服务）：
+
+```powershell
+php -r 'require "vendor/autoload.php"; $app = new think\App(); $app->initialize();
+$v = $app->make(think\View::class);
+$out = $v->fetch("index.html", ["platformName" => "云仓", "stats" => ["total_products" => 7, "category_count" => 6, "on_sale_products" => 5, "low_stock_count" => 2]]);
+preg_match_all("/<div class=\"num\">([^<]*)<\/div>/", $out, $m);
+echo "卡片: " . implode(",", $m[1]);'
+```
+
+预期输出 `卡片: 7,6,5,2`。
+
+### 6.3 已修复：后台源码移出 Web 根（2026-11-27）
+
+**现象**：`/admin/login` 返回的不是构建产物，而是源码 `index.html`（里面还是 `./src/main.js`）；同时 `/admin/src/main.js`、`node_modules` 都能直接下载。
+
+**根因**：生成器把 SPA 源码放在了 `public/admin/`，而 `public/` 是 Web 根。静态服务器优先命中这个真实文件，`AdminEntry` 根本没机会返回 `dist/index.html`。
+
+**判定实验**（可复用）：把 `public/admin/index.html` 临时改名后再请求 `/admin/xyz`——若返回内容从“源码 285 字节”变成“产物 391 字节且含 `/admin/dist/assets`”，即证明是该文件在挡路。
+
+**修复后的布局**：
+
+```
+resources/admin/           SPA 源码（Web 根之外）
+  index.html               <script type="module" src="./src/main.js">
+  src/
+  package.json
+  vite.config.js           base: '/admin/dist/', outDir: '../../public/admin/dist'
+public/admin/dist/         唯一的对外产物
+```
+
+**验证**：构建后 `public/admin` 下只有 `dist`；`/admin/login` 返回含 `/admin/dist/assets` 的 HTML；`/admin/src/main.js` 不再是可下载源码。
+
+### 6.4 已修复：管理命令调用了不存在的方法（2026-11-27）
+
+**现象**：`php think admin:bootstrap` 报 `Call to undefined method app\command\AdminBootstrap::ask()`。
+
+**根因**：交互输入方法在 **Output** 上，不在 Command 上。`think\console\Output` 提供：
+
+```php
+$output->ask($input, '问题');          // 普通输入
+$output->askHidden($input, '密码');    // 隐藏输入（内部 Ask 驱动已处理 stty/powershell）
+$output->confirm($input, '确认？');
+$output->choice($input, '选择', [...]);
+```
+
+**修复**：`app/command/AdminBootstrap.php` 改用 `$output->ask($input, ...)` 与 `$output->askHidden($input, ...)`，并给数据库读写加了 try/catch。验证方式（不产生数据）：
+
+```powershell
+'' | php think admin:bootstrap
+```
+
+预期输出 `用户名无效（1-64 字符）。`，且 `admins` 表仍为 0 行。
+
+**生成器侧根治**：`init-prompt.md` 增加「Console command API」要求（禁止 `$this->ask()`、禁止引用未安装的 Symfony console 类），由 `test/admin-build.test.js` 断言锁定。
+
+### 6.5 已修复：会话与路由接线（2026-11-27）
+
+**现象**：`POST /api/admin/login` 返回 500，前端只提示“请求失败”。
+
+**真正的错误链**（框架把原始异常掩盖了两次，必须逐层剥）：
+
+1. 表层：`think_exception.tpl:346` 里 `htmlentities(null)` 在 PHP 8.3 触发弃用告警，异常页面自己崩了 → 只看到一张没有信息的 500 页。
+2. 中层：`Request.php:1046` → `Call to a member function get() on null`，即请求上没有会话实例。
+3. 根因：生成器没有产出 `app/middleware.php`，而框架正是在 `Http.php:216` 从这里加载全局中间件；缺 `SessionInit` 则 `$request->session` 与 `think\Session` 都拿不到 Store。
+
+**同时暴露的三个附带缺陷**：
+
+| 缺陷 | 后果 | 修复 |
+|---|---|---|
+| 路由写成 `'Api\Auth/login'` 字符串 | 解析成字面类名 → `class not exists:Api\Auth` | 改用数组可调用式 `[Auth::class, 'login']` |
+| `login` 在 `AdminAuth` 保护组内 | 登录请求先被 401 拦掉 | login/logout/csrf 移到保护组之外 |
+| `$request->session('k', $v)` 当写用 | 该方法只读，写入静默丢失 | 改用 `think\facade\Session::set()` |
+
+**最终接线**：
+
+```
+app/middleware.php         return [think\middleware\SessionInit::class];
+route/app.php              Route::post('api/admin/login', [Auth::class, 'login']);  // 保护组之外
+                           Route::group('api/admin', function () { ... })->middleware([AdminAuth::class]);
+app/controller/api/Auth.php、app/middleware/AdminAuth.php、app/service/OperationLogger.php
+                           全部改用 think\facade\Session 读写
+```
+
+**验收结果**（临时账号验证后已删除，数据库仅保留你自己的管理员）：
+
+| 场景 | 期望 | 实测 |
+|---|---|---|
+| 未登录访问受保护 API | 401 | 401 `未登录或会话已过期` |
+| 正确密码登录 | 200 + csrf_token | 200，含 csrf_token |
+| 带会话访问 `/api/admin/me` | 200 | 200，返回管理员信息 |
+| 带会话访问 `/api/admin/dashboard` | 200 | 200，`0,6,0,0` 真实聚合 |
+| 无 `X-CSRF-Token` 的写操作 | 419 | 419 |
+| 公开首页 | 200 | 200 |
+
+**排错方法论**：这个 500 三次被框架异常页掩盖。定位手法是把 `think\exception\Handle` 通过 `$app->bind()` 换成一个 `report()` 里打印 `get_class`/`getMessage`/`getFile:getLine` 的匿名类，然后 `$app->http->run($request)` 在 CLI 里派发请求——避免反复猜。
+
+### 6.6 仍待验证 / 待决定
+
 1. **`/admin/<path>` 通配未验证**：`route/app.php:11` 用 `pattern(['path' => '.*'])` 兜底 SPA 路由，若 F5 刷新子页面 404，需要改成 ThinkPHP 8 支持的写法（如 `Route::get('/admin/<path?>', ...)` 或改用 `miss` 路由）。属运行后验证项，不是生成阶段的错误。
 2. **生成项目 README 与目录实际不符**：README 写了 `app/model/`、`app/validate/`、`template/`，实际未生成（控制器直接用 `Db` 门面 + `view/` 模板）。功能不受影响。
 3. **`MailService` 未实现发送**：生成时未内置第三方 SMTP 库，需选定（如 PHPMailer）后在 `app/service/MailService.php` 补发送逻辑，仍从 `env` 读凭据。
@@ -188,6 +333,7 @@ schtasks /Create /TN "yun_cang 低库存邮件" /SC DAILY /ST 09:00 /TR "\"D:\wa
 
 | 操作 | 命令 |
 |---|---|
+| 项目结构体检 | `node scripts/validate-project.js D:\software\yun_cang`（在工具仓库根目录运行） |
 | 换端口启动 | `php think run --port 8080` |
 | 前端改动后重建 | `cd public\admin; npm run build; cd D:\software\yun_cang` |
 | 前端热更新开发 | `cd public\admin; npm run dev`（`vite` 已配 `/api` 代理到 `127.0.0.1:8000`） |

@@ -72,11 +72,27 @@
       "component_library": "Element Plus 2.13.2",
       "route_prefix": "/admin",
       "api_prefix": "/api/admin",
+      "build": {
+        "source_dir": "resources/admin; the SPA source (index.html, src/, package.json, vite.config.js) must live outside the web root. Never place it under public/, where a static server exposes the source and serves public/admin/index.html for /admin/* URLs instead of the built dist file",
+        "entry_html": "resources/admin/index.html must reference ./src/main.js as a relative path; never /admin/src/main.js, which breaks vite build resolution",
+        "vite_base": "/admin/dist/ because the built index.html lives in public/admin/dist and is served by the /admin/* route; the default '/admin/' base makes asset URLs miss the dist folder",
+        "output_dir": "public/admin/dist (vite outDir '../../public/admin/dist' relative to resources/admin)",
+        "verify": "npm run build from resources/admin succeeds, public/admin contains only dist, and /admin/src/main.js is not downloadable"
+      },
       "authentication": {
         "login": "required",
         "self_service_registration": "disabled; no registration page, route, or API",
         "session": "same-origin server-side session cookie with HttpOnly and SameSite protections",
         "csrf": "protect state-changing authenticated requests",
+        "session_wiring": {
+          "global_middleware": "app/middleware.php must return [think\\middleware\\SessionInit::class]; without it the request has no session store and $request->session() throws 'Call to a member function get() on null'",
+          "api": "read and write session through think\\facade\\Session: get/set/delete/clear/destroy/regenerate. Request::session($name, $default) is a read-only reader; passing a value there silently does nothing",
+          "public_routes": "login, logout and csrf must be registered outside the AdminAuth middleware group, otherwise the login request is rejected by the auth middleware itself"
+        },
+        "route_wiring": {
+          "form": "define controller routes as array callables [Controller::class, 'method']; a string rule such as 'Api\\Auth/login' is parsed as a literal class name and fails with 'class not exists:Api\\Auth'",
+          "why": "array form removes namespace guessing and case sensitivity between the route string and the declared controller namespace"
+        },
         "protected_routes": [
           "/admin/** except login",
           "/api/admin/**"

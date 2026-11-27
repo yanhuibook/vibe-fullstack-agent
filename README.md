@@ -96,3 +96,46 @@ npm start -- --init ../yun-cang
 公开首页由 ThinkPHP 模板渲染，展示平台介绍、核心功能、来自 MySQL 的真实聚合统计卡片和“进入管理后台”按钮（跳转 `/admin/login`）；统计卡片为商品总数、商品分类、在售商品、库存预警，不显示用户姓名、头像、账户信息、SKU 或单个商品库存明细。帮助中心和联系我们也是公开模板页面。管理后台由 Vue SPA 实现，必须登录且不开放自助注册；后台包括仪表盘、商品、库存预警和系统设置。新增商品的分类下拉读取 MySQL 分类表，初始分类为：数码配件、电脑外设、影音设备、显示设备、智能家居、网络设备；默认分类由系统设置决定。数据库名默认 `yun_cang`，连接地址使用本机 `127.0.0.1:3306`。
 
 **凭据安全：** 不要把数据库 root 密码放进提示词、生成文件或版本库。聊天里出现过的数据库密码建议更换；在本地 MySQL 创建仅访问 `yun_cang` 数据库的应用用户，并在生成项目的本机 `.env` 中填写。CLI 根目录的 `.env` 保存模型服务配置；生成项目只提供 `.env.example` 占位文件，不创建真实 `.env`。原型不会连接数据库、执行迁移、安装依赖或运行命令；这些步骤由你审阅 README 后在 VS Code 终端手动完成。数据库用户/密码不会发送给模型。
+
+## 生成产物的骨架保证（P2 已实施）
+
+首次把产物落地到 `D:\software\yun_cang` 时，运行期暴露了 6 类缺口。这些不再是「靠提示词祈祷」：
+
+### 1. 固定骨架注入（`src/skeleton.js`）
+
+以下文件内容完全确定，生成时**无条件覆盖**，模型写不写都不影响结果：
+
+| 文件 | 作用 |
+|---|---|
+| `think` | 控制台入口，`php think` 系列命令依赖 |
+| `.gitignore` | 忽略 `vendor`、`node_modules`、`dist`、`runtime`、`.env` |
+| `config/{cache,log,view,route,cookie,lang}.php` | 框架必需配置；缺任一即启动失败 |
+| `app/middleware.php` | 注册 `SessionInit`，缺它请求上没有会话实例 |
+| `public/router.php`、`public/.htaccess` | `php think run` 路由脚本与 Apache 重写 |
+| `resources/admin/{index.html,vite.config.js,package.json}` | 后台源码在 Web 根之外，`base: /admin/dist/`，入口 `./src/main.js` |
+
+### 2. 写入前结构校验（`validateGeneratedStructure`）
+
+命中任一条即**拒绝写入**并列出问题，不会留下半成品目录：
+
+- 必需文件缺失
+- 路由用了字符串控制器形式（`'Api\Auth/login'`）
+- 登录路由出现在 `api/admin` 鉴权组之后
+- 鉴权分组缺 `->middleware(...)`
+- `app/middleware.php` 未注册 `SessionInit`
+- 后台源码出现在 `public/` 内（只允许 `index.php`、`router.php`、`.htaccess` 与 `admin/dist/**`）
+- 后台入口脚本不是相对路径，或 `vite base` / `outDir` 与产物位置不匹配
+- 把 `$request->session()` 当写入使用
+- 命令类调用 `$this->ask()`
+
+### 3. 事后体检脚本
+
+已生成的项目（含手工改过的）可随时复检：
+
+```bash
+node scripts/validate-project.js ../yun_cang
+```
+
+输出结构问题清单，并列出「忽略注释后仍与骨架不同」的文件，便于发现被改坏的骨架。
+
+自测：`node test/skeleton.test.js`（11 条），全部测试共 41 条通过。

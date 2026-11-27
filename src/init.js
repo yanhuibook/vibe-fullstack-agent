@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { requestPlan } from './provider.js';
 import { formatUsageReport } from './usage.js';
+import { injectSkeleton, validateGeneratedStructure } from './skeleton.js';
 
 const MAX_FILES = 200;
 const MAX_FILE_BYTES = 80_000;
@@ -85,9 +86,29 @@ export async function generateProject({ targetInput, profile, modelConfig, rl, a
   const completion = await requestPlan({ ...modelConfig, systemPrompt, userPrompt });
   console.log('\n=== 本次模型用量与费用估算 ===\n' + formatUsageReport({ ...completion, maxOutputTokens: modelConfig.maxOutputTokens }));
   const parsed = parseJson(completion.content);
-  const files = validateGeneratedFiles(parsed.files);
+  const modelFiles = validateGeneratedFiles(parsed.files);
+
+  // 固定骨架无条件覆盖模型产出：这些文件内容确定，不能交给模型自由发挥。
+  const { files, injected, overwritten } = injectSkeleton(modelFiles);
+  const problems = validateGeneratedStructure(files);
+
   const manualSteps = Array.isArray(parsed.manual_steps) ? parsed.manual_steps.map(String) : [];
   console.log(`\n=== 方案 ===\n${String(parsed.summary ?? '商品与库存管理平台')}`);
+
+  if (injected.length || overwritten.length) {
+    console.log('\n=== 固定骨架注入 ===');
+    if (injected.length) console.log(`补齐：${injected.join('、')}`);
+    if (overwritten.length) console.log(`以骨架为准覆盖：${overwritten.join('、')}`);
+  }
+
+  if (problems.length) {
+    console.log('\n=== 生成结果未通过结构校验 ===');
+    for (const problem of problems) console.log(`- ${problem}`);
+    console.log('\n已中止，目标目录未写入任何文件。请调整规格或更换模型后重试。');
+    return;
+  }
+  console.log('\n结构校验通过（骨架完整、路由与会话接线、后台构建路径、源码不在 Web 根内）。');
+
   console.log('\n=== 将创建的文件 ===');
   for (const file of files) console.log(`- ${file.path}`);
   if (manualSteps.length) {
