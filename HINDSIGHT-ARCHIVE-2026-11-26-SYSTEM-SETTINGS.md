@@ -87,6 +87,8 @@
 
 ## 下一步：分阶段生成与本机验收
 
+> **状态更新（2026-11-27）**：阶段 1-4 已一次性生成完成，43 个文件写入 `D:\software\yun_cang`，但尚未安装依赖、建库与启动。后续进展、已知缺口与验收清单见 [HINDSIGHT-ARCHIVE-2026-11-27-INIT-MODE-FIX.md](HINDSIGHT-ARCHIVE-2026-11-27-INIT-MODE-FIX.md) 与 [project_steps.md](project_steps.md)。本节保留为当时的阶段划分记录。
+
 ### 阶段 1：基础架构与公开首页
 - 数据库 schema（`admins`、`categories`、`products`、`stock_movements`、`settings`、`operation_logs`）
 - ThinkPHP 公开首页模板（4 张聚合统计卡片、品牌导航、进入后台按钮）
