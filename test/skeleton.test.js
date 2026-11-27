@@ -20,7 +20,7 @@ Route::post('api/admin/login', [Auth::class, 'login']);
 
 Route::group('api/admin', function () {
     Route::get('me', [Auth::class, 'me']);
-})->middleware([AdminAuth::class]);
+})->middleware([AdminAuth::class])->completeMatch();
 `
     },
     {
@@ -61,6 +61,7 @@ test('骨架补齐缺失文件并按路径排序', () => {
     'config/route.php',
     'config/cookie.php',
     'config/lang.php',
+    'config/database.php',
     'app/middleware.php',
     'public/router.php',
     'public/.htaccess',
@@ -106,6 +107,29 @@ test('合规产出通过校验', () => {
   assert.deepEqual(validateGeneratedStructure(files), []);
 });
 
+test('骨架为数据库配置写死表前缀 yc_', () => {
+  assert.match(SKELETON_FILES['config/database.php'], /['"]prefix['"]\s*=>\s*['"]yc_['"]/);
+  const { files } = injectSkeleton(baseFiles());
+  assert.ok(files.some((file) => file.path === 'config/database.php'));
+});
+
+test('检出表前缀不是 yc_ 的数据库配置', () => {
+  const cases = {
+    空前缀: SKELETON_FILES['config/database.php'].replace("'prefix' => 'yc_'", "'prefix' => ''"),
+    缺配置文件: null
+  };
+
+  for (const [name, content] of Object.entries(cases)) {
+    const files = baseFiles();
+    if (content) files.push({ path: 'config/database.php', content });
+    const problems = validateGeneratedStructure(files);
+    const hit = content
+      ? problems.some((p) => p.includes("prefix 必须为 'yc_'"))
+      : problems.some((p) => p.includes('缺少 config/database.php'));
+    assert.ok(hit, `${name} 未被检出：${problems.join('\n')}`);
+  }
+});
+
 test('检出字符串控制器路由', () => {
   const files = baseFiles();
   files[0].content = files[0].content.replace(
@@ -143,6 +167,55 @@ test('允许 public 下的入口脚本与构建产物', () => {
   files.push({ path: 'public/admin/dist/index.html', content: '<div></div>\n' });
   files.push({ path: 'public/admin/dist/assets/app.js', content: 'var a=1\n' });
   assert.deepEqual(validateGeneratedStructure(injectSkeleton(files).files), []);
+});
+
+test('检出 api/admin 分组缺少完整匹配', () => {
+  const files = baseFiles();
+  files[0].content = files[0].content.replace('->completeMatch()', '');
+  const problems = validateGeneratedStructure(injectSkeleton(files).files);
+  assert.ok(problems.some((p) => p.includes('->completeMatch()')), problems.join('\n'));
+});
+
+test('检出漏前导反斜杠的 ThinkPHP 类引用', () => {
+  const files = baseFiles();
+  files.push({
+    path: 'app/controller/api/Product.php',
+    content: `<?php
+namespace app\\controller\\api;
+
+class Product
+{
+    public function adjustStock(int $id)
+    {
+        $adminId = (int) think\\facade\\Session::get('admin_id', 0);
+        return json(['code' => 0, 'data' => ['admin_id' => $adminId]]);
+    }
+}
+`
+  });
+  const problems = validateGeneratedStructure(files);
+  assert.ok(problems.some((p) => p.includes('缺少前导反斜杠')), problems.join('\n'));
+});
+
+test('带前导反斜杠的写法不误报', () => {
+  const files = baseFiles();
+  files.push({
+    path: 'app/controller/api/Log.php',
+    content: `<?php
+namespace app\\controller\\api;
+
+class Log
+{
+    public function index()
+    {
+        $adminId = (int) \\think\\facade\\Session::get('admin_id', 0);
+        return json(['code' => 0, 'data' => ['admin_id' => $adminId]]);
+    }
+}
+`
+  });
+  const problems = validateGeneratedStructure(files);
+  assert.ok(!problems.some((p) => p.includes('缺少前导反斜杠')), problems.join('\n'));
 });
 
 test('检出把 $request->session() 当写入使用', () => {

@@ -35,6 +35,84 @@ export function validatePatch(root, patch) {
   return paths;
 }
 
+const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
+
+/**
+ * 按 hunk 正文重算行数并改写头部。
+ *
+ * 模型给出的 diff 经常出现「头部声明的行数与正文不符」和「空上下文行丢了前导空格」，
+ * 两者都会让 git 判为 corrupt patch。行数完全可以由正文推出来（' ' 与 '-' 计入旧文件，
+ * ' ' 与 '+' 计入新文件），因此这里直接纠正，不改动任何内容行。
+ *
+ * @param {string} patch
+ * @returns {{patch: string, repaired: number}}
+ */
+export function repairDiffHunkHeaders(patch) {
+  if (!patch.includes('@@ ')) return { patch, repaired: 0 };
+  const lines = patch.split(/\r?\n/);
+  const out = [];
+  let repaired = 0;
+  let i = 0;
+
+  while (i < lines.length) {
+    const headerMatch = lines[i].match(HUNK_HEADER);
+    if (!headerMatch) {
+      out.push(lines[i]);
+      i += 1;
+      continue;
+    }
+
+    const body = [];
+    let j = i + 1;
+    while (j < lines.length && !HUNK_HEADER.test(lines[j]) && !lines[j].startsWith('diff --git ')) {
+      body.push(lines[j]);
+      j += 1;
+    }
+    // 去掉 hunk 末尾的空行（它属于文件间的分隔，不属于正文）
+    while (body.length && body[body.length - 1] === '') body.pop();
+
+    let oldCount = 0;
+    let newCount = 0;
+    let bodyChanged = false;
+    const normalizedBody = body.map((line) => {
+      if (line.startsWith('\\')) return line; // "\ No newline at end of file"
+      if (line === '') {
+        // 空上下文行必须带前导空格，否则 git 认为 hunk 提前结束
+        oldCount += 1;
+        newCount += 1;
+        bodyChanged = true;
+        return ' ';
+      }
+      const marker = line[0];
+      if (marker === '+') newCount += 1;
+      else if (marker === '-') oldCount += 1;
+      else {
+        oldCount += 1;
+        newCount += 1;
+        if (!line.startsWith(' ')) {
+          bodyChanged = true;
+          return ` ${line}`;
+        }
+        return line;
+      }
+      return line;
+    });
+
+    const declaredOld = headerMatch[2] === undefined ? 1 : Number(headerMatch[2]);
+    const declaredNew = headerMatch[4] === undefined ? 1 : Number(headerMatch[4]);
+    const headerTail = lines[i].slice(headerMatch[0].length);
+    const rebuilt = `@@ -${headerMatch[1]},${oldCount} +${headerMatch[3]},${newCount} @@${headerTail}`;
+
+    if (declaredOld !== oldCount || declaredNew !== newCount || rebuilt !== lines[i] || bodyChanged) repaired += 1;
+    out.push(rebuilt, ...normalizedBody);
+    i = j;
+  }
+
+  let result = out.join('\n');
+  if (patch.endsWith('\n') && !result.endsWith('\n')) result += '\n';
+  return { patch: result, repaired };
+}
+
 export function applyPatch(root, patch) {
   validatePatch(root, patch);
   const check = spawnSync('git', ['apply', '--check', '--whitespace=nowarn', '-'], {

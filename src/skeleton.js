@@ -112,6 +112,27 @@ return [
 ];
 `,
 
+  'config/database.php': `<?php
+// 数据库配置。prefix 固定为 yc_（表结构规约见 ARCHITECTURE-PLAN 4.4）：
+// 查询侧不要手写前缀，Db::name('products') 与 leftJoin('categories c') 都会自动补。
+return [
+    'default' => 'mysql',
+    'connections' => [
+        'mysql' => [
+            'type' => env('DB_TYPE', 'mysql'),
+            'hostname' => env('DB_HOST', '127.0.0.1'),
+            'database' => env('DB_NAME', 'yun_cang'),
+            'username' => env('DB_USER', 'yun_cang_app'),
+            'password' => env('DB_PASSWORD', ''),
+            'hostport' => env('DB_PORT', '3306'),
+            'charset' => env('DB_CHARSET', 'utf8mb4'),
+            'prefix' => 'yc_',
+            'debug' => env('APP_DEBUG', false),
+        ],
+    ],
+];
+`,
+
   'app/middleware.php': `<?php
 // 全局中间件。think\\Http 从本文件加载全局中间件；
 // 缺少 SessionInit 时请求上没有会话实例，$request->session() 会抛
@@ -293,12 +314,27 @@ export function validateGeneratedStructure(files) {
     if (groupIndex >= 0 && !/->middleware\(/.test(routeText)) {
       problems.push('api/admin 分组缺少鉴权中间件');
     }
+
+    // 前缀匹配会把子路径吞掉：products/<id>/stock 会命中 products 规则
+    if (groupIndex >= 0 && !/->completeMatch\(/.test(routeText)) {
+      problems.push(
+        'api/admin 分组缺少 ->completeMatch()：ThinkPHP 默认按前缀匹配，products/<id>、products/<id>/stock 等子路径会被 products、settings 规则吞掉'
+      );
+    }
   }
 
   // 会话中间件
   const middlewareText = byPath.get('app/middleware.php');
   if (middlewareText && !middlewareText.includes('SessionInit')) {
     problems.push('app/middleware.php 未注册 SessionInit，请求上将没有会话实例');
+  }
+
+  // 表前缀约定：Db::name()/join() 依赖它，写错会让所有查询打空
+  const dbConfig = byPath.get('config/database.php');
+  if (!dbConfig) {
+    problems.push('缺少 config/database.php（连接配置与表前缀 yc_ 由骨架保证）');
+  } else if (!/['"]prefix['"]\s*=>\s*['"]yc_['"]/.test(dbConfig)) {
+    problems.push("config/database.php 的 prefix 必须为 'yc_'（表名前缀约定）");
   }
 
   // 后台入口与构建配置
@@ -329,6 +365,20 @@ export function validateGeneratedStructure(files) {
     if (!/^app\//.test(file.path)) continue;
     if (/^\s*\$request->session\([^;]*\);\s*$/m.test(file.content)) {
       problems.push(`${file.path} 把 $request->session() 当写入使用；应改用 think\\facade\\Session::set()`);
+    }
+  }
+
+  // 命名空间内联引用 ThinkPHP 类却漏了前导反斜杠（如 think\facade\Session::get）：
+  // 会被解析成「当前命名空间 + think\...」→ 运行时 Class not found，
+  // 而且只有走到该分支才炸（库存调整就因此一直没暴露）。
+  for (const file of files) {
+    if (!/^app\//.test(file.path)) continue;
+    const hits = file.content.match(/(?<![\\\w])think\\[\w\\]+::/g);
+    if (hits) {
+      const sample = [...new Set(hits)][0];
+      problems.push(
+        `${file.path} 的 ${sample} 缺少前导反斜杠（或 use 导入），运行时会解析成当前命名空间下的类并抛 Class not found`
+      );
     }
   }
 

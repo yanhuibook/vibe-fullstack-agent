@@ -110,6 +110,7 @@ npm start -- --init ../yun-cang
 | `think` | 控制台入口，`php think` 系列命令依赖 |
 | `.gitignore` | 忽略 `vendor`、`node_modules`、`dist`、`runtime`、`.env` |
 | `config/{cache,log,view,route,cookie,lang}.php` | 框架必需配置；缺任一即启动失败 |
+| `config/database.php` | 连接配置，`prefix` 固定 `yc_`（表名前缀约定，查询侧不手写前缀） |
 | `app/middleware.php` | 注册 `SessionInit`，缺它请求上没有会话实例 |
 | `public/router.php`、`public/.htaccess` | `php think run` 路由脚本与 Apache 重写 |
 | `resources/admin/{index.html,vite.config.js,package.json}` | 后台源码在 Web 根之外，`base: /admin/dist/`，入口 `./src/main.js` |
@@ -122,7 +123,10 @@ npm start -- --init ../yun-cang
 - 路由用了字符串控制器形式（`'Api\Auth/login'`）
 - 登录路由出现在 `api/admin` 鉴权组之后
 - 鉴权分组缺 `->middleware(...)`
+- `api/admin` 分组缺 `->completeMatch()`（默认前缀匹配会让 `products/<id>/stock` 被 `products` 吞掉）
 - `app/middleware.php` 未注册 `SessionInit`
+- `config/database.php` 缺失或其 `prefix` 不是 `yc_`（表名前缀约定）
+- `app/` 下出现漏前导反斜杠的 `think\...::` 引用（会被解析成当前命名空间下的类）
 - 后台源码出现在 `public/` 内（只允许 `index.php`、`router.php`、`.htaccess` 与 `admin/dist/**`）
 - 后台入口脚本不是相对路径，或 `vite base` / `outDir` 与产物位置不匹配
 - 把 `$request->session()` 当写入使用
@@ -138,4 +142,15 @@ node scripts/validate-project.js ../yun_cang
 
 输出结构问题清单，并列出「忽略注释后仍与骨架不同」的文件，便于发现被改坏的骨架。
 
-自测：`node test/skeleton.test.js`（11 条），全部测试共 41 条通过。
+自测：`node test/skeleton.test.js`（15 条），全部测试共 50 条（49 通过，1 条 git 集成在沙箱内跳过）。
+
+## 文档导航
+
+| 文档 | 用途 |
+|---|---|
+| [ARCHITECTURE-PLAN-2026-11-27.md](ARCHITECTURE-PLAN-2026-11-27.md) | **架构治理计划**：表前缀、基类体系、前端公共层、闸门、骨架化（S1–S5）。新会话从这里开始 |
+| [RUNBOOK-yun_cang.md](RUNBOOK-yun_cang.md) | 落地手册：环境、七步初始化、报错对照表、修复详情 |
+| [project_steps.md](project_steps.md) | 进度勾选清单 |
+| [dev_log.md](dev_log.md) | 开发日志（第一至第八阶段） |
+| [HINDSIGHT-ARCHIVE-2026-11-27-INIT-MODE-FIX.md](HINDSIGHT-ARCHIVE-2026-11-27-INIT-MODE-FIX.md) | 首次生成与 8 类故障复盘 |
+| [HINDSIGHT-ARCHIVE-2026-11-27-S1-AND-ROUTE.md](HINDSIGHT-ARCHIVE-2026-11-27-S1-AND-ROUTE.md) | **S1 数据库治理 + 路由缺陷修复**复盘（表前缀/软删除/迁移机制、路由前缀匹配缺陷） |

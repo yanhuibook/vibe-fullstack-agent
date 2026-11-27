@@ -3,7 +3,7 @@
 **日期**：2026-11-27
 **仓库**：https://github.com/yanhuibook/vibe-fullstack-agent
 **版本**：v0.8
-**关联**：[HINDSIGHT-ARCHIVE-2026-11-26-SYSTEM-SETTINGS.md](HINDSIGHT-ARCHIVE-2026-11-26-SYSTEM-SETTINGS.md)
+**关联**：[HINDSIGHT-ARCHIVE-2026-11-26-SYSTEM-SETTINGS.md](HINDSIGHT-ARCHIVE-2026-11-26-SYSTEM-SETTINGS.md) · 后续进展见 [HINDSIGHT-ARCHIVE-2026-11-27-S1-AND-ROUTE.md](HINDSIGHT-ARCHIVE-2026-11-27-S1-AND-ROUTE.md)
 
 ## 本日总览
 
@@ -262,7 +262,30 @@ node scripts/validate-project.js ../yun_cang
 
 测试合计 **41 条全部通过**（10 个测试文件）。
 
-### 4.8 仍待处理的问题
+### 4.8 补丁 hunk 行数错误导致 `corrupt patch`（已修复）
+
+**现象**：用 `--project ../yun_cang` 修改 `Products.vue` 时，输入 `APPLY` 后报 `错误：补丁检查失败：error: corrupt patch at line 18`。
+
+**根因**：模型给出的 diff 头部是 `@@ -5,13 +5,13 @@`，但该 hunk 正文只有 11 行。git 在读到第 18 行的下一个 `@@` 时发现 hunk 未满足声明行数，判定补丁损坏。附带的常见变体是「空上下文行丢失前导空格」，同样会让 hunk 提前结束。
+
+**修复**：`src/patch.js` 新增 `repairDiffHunkHeaders(patch)`：
+
+- 逐个 hunk 遍历正文，按 `' '`/`'-'` 计入旧文件行数、`' '`/`'+'` 计入新文件行数，重写头部计数（起始行号保留）
+- 空行上下文补成单个空格；无前导空格的上下文行补空格
+- **内容行不做任何改动**
+
+`src/index.js` 在 `parseModelJson` 之后、预览之前调用，输出「已修正 N 处 hunk 行数/上下文格式」，保证预览与写入的是同一份补丁。
+
+**验证**：
+
+```
+原始补丁  → error: corrupt patch at line 18
+修复后    → git apply --check 通过（临时 git 仓库实测）
+```
+
+**配套**：`system.md` 增加 Diff requirements（上下文行含空行必须有前导空格、不得截断、行数须与正文一致），`test/patch-repair.test.js` 4 条用例。
+
+### 4.9 仍待处理的问题
 
 - **文档漂移**（无害）：生成项目 README 的目录结构写了 `app/model/`、`app/validate/`、`template/`，实际未生成。
 - **路由待验证**：`route/app.php:11` 的 `Route::get('/admin/<path>')->pattern(['path' => '.*'])` 多段通配在 ThinkPHP 8 上未必生效。表征是后台子页面按 F5 刷新 404。
@@ -314,3 +337,12 @@ node scripts/validate-project.js ../yun_cang
 - 数据库凭据与 API Key 均未传给模型；`.env.example` 仅占位。
 - 本次生成的模型调用使用 DeepSeek（用量报告显示官方单价），非此前表现较弱的 Qwen3-Coder-30B。
 - 排查过程对数据库只有只读查询（`SHOW TABLES`、`SELECT COUNT(*)`）与临时测试账号（`probe_tmp`，已删除）；未打印 `.env` 中的密码值。
+
+## 七、后续进展（2026-11-27 晚）
+
+本文档 4.9 中的两项「仍待处理」已在同日后续工作中推进，细节见 [HINDSIGHT-ARCHIVE-2026-11-27-S1-AND-ROUTE.md](HINDSIGHT-ARCHIVE-2026-11-27-S1-AND-ROUTE.md)：
+
+1. **路由待验证 → 已定位并修复**：`/admin/<path>` 通配实测生效（`GET /admin/dashboard` 200）；同时发现真正的缺陷是 `api/admin` 分组的**前缀匹配**把 `products/<id>/stock` 等子路径吞掉了（库存调整等接口实际不可用），已用分组 `completeMatch()` 修复，并修掉被它遮住的 `Product::adjustStock()` 类名解析缺陷。
+2. **表结构 → 已完成治理（S1）**：6 张表加 `yc_` 前缀、主键升 `BIGINT UNSIGNED`、补 `deleted_at`、`products.status` 由 ENUM 改 `VARCHAR(20)`、新增 RBAC 三表（共 9 表），并引入 `database/migrations` + `php think migrate`。
+3. 仍待处理：生成项目 README 的目录结构漂移、`/api/public/stats` 独立接口、`MailService` 真实发送——与本文档原结论一致。
+

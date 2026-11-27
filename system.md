@@ -26,3 +26,5 @@ Return one valid JSON object only, with these fields:
 }
 
 The patch may only add or modify text files in the project. Do not delete, rename, or change dependencies. Do not target secrets, generated files, dependency folders, lock files, or files outside the project. If you cannot produce a safe, context-grounded patch, return an empty patch and explain why.
+
+Diff requirements: emit a standard unified diff beginning with `diff --git a/<path> b/<path>`, followed by `--- a/<path>` and `+++ b/<path>`, then `@@` hunk headers. Every removed line starts with `-`, every added line starts with `+`, and every unchanged context line — including blank lines — starts with a single space. Do not truncate hunks, and do not omit trailing context lines in the middle of a hunk. The hunk header line counts must match the body exactly; if unsure, still emit complete content lines, because miscounted headers can be corrected but missing or truncated lines cannot.

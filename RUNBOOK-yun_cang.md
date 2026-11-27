@@ -78,13 +78,15 @@ Get-Content database\schema.sql -Raw | mysql -u yun_cang_app -p yun_cang
 cmd /c "mysql -u yun_cang_app -p yun_cang < database\schema.sql"
 ```
 
-预期：无输出即成功。核对：
+预期：无输出即成功。核对（S1 之后表名一律带 `yc_` 前缀）：
 
 ```powershell
-mysql -u yun_cang_app -p yun_cang -e "SHOW TABLES; SELECT name FROM categories; SELECT setting_key, setting_value FROM settings;"
+mysql -u yun_cang_app -p yun_cang -e "SHOW TABLES; SELECT name FROM yc_categories; SELECT setting_key, setting_value FROM yc_settings;"
 ```
 
-应看到 6 张表、6 个分类（数码配件…网络设备）、8 条设置。
+应看到 9 张表（6 张业务表 + `yc_role`/`yc_rule`/`yc_admin_role`）、6 个分类（数码配件…网络设备）、8 条设置。
+
+> 已有库不要重复导入（`schema.sql` 是新建库用的最终结构）。结构升级走 `php think migrate`，见 6.8。
 
 ### 步骤 5：创建首个管理员
 
@@ -138,6 +140,7 @@ php think run
 | `npm run build` 报 `Failed to resolve /admin/src/main.js from index.html` | 入口脚本写成了根绝对路径 | 改成 `./src/main.js`（见 6.3） |
 | 打包成功但后台白屏，控制台报 `Expected a JavaScript module but got text/html` | `base` 与服务位置不符，资源请求被入口控制器当 HTML 返回 | `base` 设 `/admin/dist/`（见 6.3） |
 | 后台任意 URL 都显示未编译的页面（源码里 `./src/main.js`） | SPA 源码被放在 `public/` 内 | 源码移到 `resources/admin`（见 6.3） |
+| `错误：补丁检查失败：error: corrupt patch at line N` | 模型给的 hunk 行数与正文不符，或空上下文行丢前导空格 | 工具已自动纠正（见 6.6）；若仍失败说明内容行不匹配，重新生成补丁 |
 | `Call to a member function get() on null`（`Request.php` 内，由 `$request->session()` 触发） | 没有注册 `SessionInit` 全局中间件，请求上没有会话实例 | 补 `app/middleware.php`（见 6.5） |
 | 登录接口 500，日志显示 `class not exists:Api\Auth` | 路由写成字符串 `'Api\Auth/login'`，被当作字面类名 | 改数组可调用式 `[Auth::class, 'login']`（见 6.5） |
 | 登录 401，密码明明正确 | `login` 路由被放在鉴权中间件组内，请求先被拦 | 把 login/logout/csrf 移出保护组（见 6.5） |
@@ -320,12 +323,71 @@ app/controller/api/Auth.php、app/middleware/AdminAuth.php、app/service/Operati
 
 **排错方法论**：这个 500 三次被框架异常页掩盖。定位手法是把 `think\exception\Handle` 通过 `$app->bind()` 换成一个 `report()` 里打印 `get_class`/`getMessage`/`getFile:getLine` 的匿名类，然后 `$app->http->run($request)` 在 CLI 里派发请求——避免反复猜。
 
-### 6.6 仍待验证 / 待决定
+### 6.6 已修复：补丁 hunk 行数错误（2026-11-27）
 
-1. **`/admin/<path>` 通配未验证**：`route/app.php:11` 用 `pattern(['path' => '.*'])` 兜底 SPA 路由，若 F5 刷新子页面 404，需要改成 ThinkPHP 8 支持的写法（如 `Route::get('/admin/<path?>', ...)` 或改用 `miss` 路由）。属运行后验证项，不是生成阶段的错误。
+**现象**：工具生成补丁后输入 `APPLY`，报 `补丁检查失败：error: corrupt patch at line 18`。
+
+**根因**：模型把 hunk 头写成 `@@ -5,13 +5,13 @@`，而该 hunk 正文只有 11 行；git 在下一段 `@@` 处判定补丁损坏。变体是空上下文行丢了前导空格。
+
+**修复**：工具在预览前用 `repairDiffHunkHeaders()` 按正文重算行数（`' '`/`'-'` 计旧文件，`' '`/`'+'` 计新文件）、补齐空上下文行的前导空格，内容行不改。预览时提示「已修正 N 处 hunk 行数/上下文格式」。
+
+**如果你看到这条错误**：说明工具已尝试修正但仍失败，通常是补丁内容行本身与文件不匹配（模型看的是旧上下文）。处理方式：重新提交需求，让模型基于最新文件内容重新生成补丁。
+
+### 6.7 仍待验证 / 待决定
+
+1. **`/admin/<path>` 通配**：`route/app.php` 的 `pattern(['path' => '.*'])` 兜底 SPA 路由。已实测 `GET /admin/dashboard` 返回 200（通配生效），建议再在浏览器里对后台嵌套路由按一次 F5 确认。
 2. **生成项目 README 与目录实际不符**：README 写了 `app/model/`、`app/validate/`、`template/`，实际未生成（控制器直接用 `Db` 门面 + `view/` 模板）。功能不受影响。
 3. **`MailService` 未实现发送**：生成时未内置第三方 SMTP 库，需选定（如 PHPMailer）后在 `app/service/MailService.php` 补发送逻辑，仍从 `env` 读凭据。
 4. **未单独提供 `GET /api/public/stats`**：公开统计由 `app/controller/Index.php` 在模板渲染时实时聚合，已满足“不硬编码”要求；如需独立 JSON 接口需另加。
+5. **未匹配的 API 路径返回 500 而非 404**：路由没命中时会落到默认控制器解析，抛 `Class not found`，最终渲染成 HTML 500（如 `GET /api/admin/products/1/extra`、`GET /api/admin/nope`）。属全局异常处理范畴，留到 S2 的 `exception/Handler` 统一成 JSON 404/500。
+
+### 6.8 已实施：S1 数据库治理（2026-11-27）
+
+按架构治理计划 S1 完成，`yun_cang` 库已从「6 张裸名表 + ENUM 状态 + INT 主键」升级为：
+
+| 项 | 迁移前 | 迁移后 |
+|---|---|---|
+| 表前缀 | 无 | `yc_`（`config/database.php` 的 `prefix` 同步） |
+| 表数量 | 6 | 9（新增 RBAC：`yc_role`、`yc_rule`、`yc_admin_role`） |
+| 主键 | `INT UNSIGNED` | `BIGINT UNSIGNED`，外键列类型同步 |
+| 软删除 | 无 | 各表补 `deleted_at DATETIME NULL` |
+| 状态字段 | `ENUM` | `VARCHAR(20)`（`draft/on_sale/off_sale` 取值保留，改值不再需要改表） |
+| 建表方式 | 手写 `schema.sql` | `database/migrations/*.sql` + `php think migrate`（已应用记录在 `database/migrations/applied.log`） |
+
+**关键点**：
+
+1. 查询代码**不用改**：`Db::name('products')`、`leftJoin('categories c')` 由 ThinkPHP 自动补前缀（`JoinAndViewQuery.php` 的 `getJoinTable()` 带别名时同样补）。已用登录后的 8 个接口实测。
+2. 用 `mysql` 命令行直接查表时**必须手写前缀**（`SELECT * FROM yc_products`），前缀只在应用层自动加。
+3. 迁移不可回滚（DDL 无事务）：执行前必须备份；失败时先还原再重跑，见迁移文件头部说明。
+4. `schema.sql` 已同步为最终结构（9 张表、`yc_` 前缀、BIGINT、`deleted_at`、VARCHAR 状态），只用于**新建库**。
+5. 从 `mysqldump` 还原的库再跑迁移，可能残留一个冗余索引 `fk_movements_admin`（实测：直接升级的库上隐式索引会随外键消失，还原库上会保留）；确认后可手工 `ALTER TABLE yc_stock_movements DROP INDEX fk_movements_admin`。
+
+### 6.9 已修复：路由前缀匹配吞掉子路径 + 库存调整类名解析（2026-11-27）
+
+**现象**（S1 冒烟时实测）
+
+- `POST /api/admin/products/1/stock` 返回 422「商品名称必填」→ 后台「库存调整」完全不可用
+- `GET /api/admin/products/1` 返回列表而不是单条；`GET /api/admin/products/1/movements`、`POST /api/admin/settings/restore-defaults` 同样被打到父规则
+
+**根因**（两处缺陷叠在一起，第二处被第一处遮住）
+
+1. `route/app.php` 把 `products`、`settings` 规则注册在子路径规则之前，而 ThinkPHP 的 `route_complete_match` 默认 false（`Route.php:64`），规则按**前缀**匹配 → `products/1/stock` 命中了 `products`。
+2. 路由修好后 `Product::adjustStock()` 原本会 500：第 130 行写的是 `think\facade\Session::get()`，而文件在 `namespace app\controller\api` 且没有 `use think\facade\Session;`，被解析成 `app\controller\api\think\facade\Session` → `Class not found`。该分支此前根本走不到，所以一直没暴露。
+
+**修法**
+
+1. `route/app.php`：分组加 `->completeMatch()`，api/admin 下每条规则都要求路径完全匹配（`RuleGroup.php:335` 会把分组选项下发给子规则）。这比改全局 `route_complete_match` 影响面小。
+2. `Product.php`：补 `use think\facade\Session;`，第 130 行改用 `Session::get(...)`。
+3. 生成器侧加两条校验（S5 一并模板化）：api/admin 分组必须带 `->completeMatch()`；`app/` 下出现漏前导反斜杠的 `think\...::` 引用即拒绝写入。
+
+**验证**
+
+- 路由回归脚本 25 项全 PASS：公开页（`/`、`/help`、`/contact`）、SPA 通配、列表与详情区分、库存 +1/-1 与流水、创建/修改/删除/删除后 404、恢复默认设置、6 个只读接口、多余路径段不再命中业务规则
+- S1 冒烟 15 项全 PASS
+- 数据面还原：库存 5/20、流水 0、操作日志 22、设置表指纹（含 `updated_at`）运行前后一致
+
+> 完整复盘（现象、根因推导、诊断踩坑、教训与 S2 交接）见 [HINDSIGHT-ARCHIVE-2026-11-27-S1-AND-ROUTE.md](HINDSIGHT-ARCHIVE-2026-11-27-S1-AND-ROUTE.md)。
+
 
 ---
 
@@ -338,5 +400,6 @@ app/controller/api/Auth.php、app/middleware/AdminAuth.php、app/service/Operati
 | 前端改动后重建 | `cd public\admin; npm run build; cd D:\software\yun_cang` |
 | 前端热更新开发 | `cd public\admin; npm run dev`（`vite` 已配 `/api` 代理到 `127.0.0.1:8000`） |
 | 清运行时缓存 | 删除 `runtime\` 目录下对应子目录 |
-| 查看表结构 | `mysql -u yun_cang_app -p yun_cang -e "SHOW TABLES;"`；看单表定义用 `-e "SHOW CREATE TABLE settings;"` |
+| 查看表结构 | `mysql -u yun_cang_app -p yun_cang -e "SHOW TABLES;"`；看单表定义用 `-e "SHOW CREATE TABLE yc_settings;"`（表名带 `yc_` 前缀） |
+| 执行结构迁移 | `php think migrate`（应用 `database/migrations/*.sql`，已应用记录见 `database/migrations/applied.log`） |
 | 手工跑邮件/清理 | `php think low-stock:email` / `php think operation-log:cleanup` |

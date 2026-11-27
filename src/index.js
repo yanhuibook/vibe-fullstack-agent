@@ -5,7 +5,7 @@ import { stdin as input, stdout as output } from 'node:process';
 import { APP_ROOT, getModelConfig, loadEnv } from './config.js';
 import { buildProjectContext, resolveProjectRoot, validateRelativeFilePath } from './workspace.js';
 import { requestPlan } from './provider.js';
-import { applyPatch, parseModelJson, validatePatch } from './patch.js';
+import { applyPatch, parseModelJson, repairDiffHunkHeaders, validatePatch } from './patch.js';
 import { formatUsageReport } from './usage.js';
 import { generateProject } from './init.js';
 
@@ -103,6 +103,16 @@ async function main() {
     if (!result.patch || !result.patch.trim()) {
       console.log('\n模型没有生成补丁；项目尚未修改。');
       return;
+    }
+
+    // 模型经常把 hunk 头部的行数算错（或丢了空上下文行的前导空格），git 会判为 corrupt patch。
+    // 行数可由 hunk 正文推出，这里先纠正，预览与写入都用修正后的补丁。
+    if (result.patch.includes('@@ ')) {
+      const { patch: repairedPatch, repaired } = repairDiffHunkHeaders(result.patch);
+      if (repaired > 0) {
+        result.patch = repairedPatch;
+        console.log(`\n已修正补丁中 ${repaired} 处 hunk 行数/上下文格式（模型统计不准，内容未改动）`);
+      }
     }
 
     const paths = validatePatch(root, result.patch);
