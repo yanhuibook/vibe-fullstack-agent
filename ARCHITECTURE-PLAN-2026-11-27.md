@@ -274,9 +274,9 @@ cd D:\software\yun_cang; php think run    # 首页 200、/admin/login 200
 
 ---
 
-### S2 后端公共层
+### S2 后端公共层 ✅ 已完成（2026-11-27，P9 PHPStan 受环境阻塞）
 
-> **新会话从这里接着做**：执行交接见 [HANDOFF-S2-2026-11-27.md](HANDOFF-S2-2026-11-27.md)（开场白、现状自检、P1–P9 拆解、环境限制）。
+> 执行记录见 [HINDSIGHT-ARCHIVE-2026-11-27-S2.md](HINDSIGHT-ARCHIVE-2026-11-27-S2.md)：基类体系全部落地，34 处控制器裸 `json([...])` 收敛为 0，RBAC 接线完成（并补上 S1 遗漏的 `yc_role_rule` 关联表）。**PHPStan level 7 未跑**：本机无外网，配置与命令已就绪。
 
 **目标**：建基类体系，把 36 处裸 `json([...])` 收敛掉。
 

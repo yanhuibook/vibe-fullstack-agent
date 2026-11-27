@@ -77,7 +77,7 @@
 ## 阶段 H：架构治理（ARCHITECTURE-PLAN S1–S5）
 
 - [x] **S1 数据库治理**：表前缀 `yc_`、主键升 BIGINT、补 `deleted_at`、`products.status` 改 VARCHAR(20)、RBAC 三表、`php think migrate` 迁移机制；9 张表 + 15 项接口冒烟全通过（2026-11-27）
-- [ ] S2 后端公共层（BaseController / BaseModel / BaseService / 异常与错误码 / PHPStan）→ 交接见 [HANDOFF-S2-2026-11-27.md](HANDOFF-S2-2026-11-27.md)
+- [x] **S2 后端公共层**：`ApiCode`/`ApiException`/`Handler`（JSON 404/500）、`BaseController`、`BaseModel` + 6 模型、`BaseValidate` + 2 校验器、`BaseService`（DSL+事务）、控制器 34 处响应收敛、`common.php`、RBAC 接线（`rule:scan`/`rule:grant` + `yc_role_rule` + `AdminBootstrap` 绑 super）；路由 25/25 + S1 冒烟 15/15 + 构建通过（2026-11-27）。**P9 PHPStan 因本机无外网未执行**，配置已就绪，详见 [HINDSIGHT-ARCHIVE-2026-11-27-S2.md](HINDSIGHT-ARCHIVE-2026-11-27-S2.md)
 - [ ] S3 前端公共层（request 抽取、api 按域拆分、枚举/组件/composable、页面内聚）
 - [ ] S4 闸门（ESLint 边界规则、stylelint、verify.ps1）
 - [ ] S5 骨架化（把 S1–S4 成果写进 `src/skeleton.js`）
@@ -85,6 +85,8 @@
 ---
 
 ## 下一步计划（按优先级）
+
+> 版本：2026-11-27 深夜（S2 完成后重排）。上一轮排期里的「P3 待决策」保持不变，新增 P4/P5。
 
 ### P0 功能验收（浏览器里点，需登录后操作）
 
@@ -94,6 +96,7 @@
 4. 系统设置：保存生效；恢复默认需二次确认，且不删除分类/商品/库存/管理员
 5. 操作日志：分页可读，`detail` 为 JSON 摘要且不含密码
 6. ~~路由优先级缺陷（S1 新发现）~~ ✅ 已修（2026-11-27）：`api/admin` 分组加 `->completeMatch()`，并把被遮住的 `Product::adjustStock()` 类名解析缺陷（`think\facade\Session` 缺前导反斜杠）一并修掉；路由回归 25 项、S1 冒烟 15 项全通过。详见手册 6.9
+7. **（S2 新增）RBAC 权限链在浏览器里点一遍**：用非超管账号登录，确认左侧菜单可用项与 `rule:grant` 授权一致；`/api/admin/me` 不被拦
 
 ### P1 定时任务与邮件占位
 
@@ -104,13 +107,28 @@
 ### P2 生成器根治（已完成）
 
 9. ~~`src/init.js` 增加固定骨架注入~~ ✅ 新增 `src/skeleton.js`，15 个骨架文件由程序写入（不依赖模型）；S1 追加 `config/database.php`（表前缀 `yc_`）
-10. ~~生成结果静态校验并拒绝不合规产物~~ ✅ 10 类校验，命中即中止且零写入
+10. ~~生成结果静态校验并拒绝不合规产物~~ ✅ 12 类校验，命中即中止且零写入
 11. ~~骨架清单并入完整性检查~~ ✅ 流程为 `validateGeneratedFiles → injectSkeleton → validateGeneratedStructure → CREATE 后写入`
-12. ~~扩充测试~~ ✅ `test/skeleton.test.js` 13 条；全量 47 条（46 通过 1 沙箱跳过）
+12. ~~扩充测试~~ ✅ `test/skeleton.test.js` 15 条；全量 50 条（49 通过 1 沙箱跳过）
 13. ~~事后体检工具~~ ✅ `scripts/validate-project.js <dir>`，已对 `yun_cang` 跑通并发现 `.gitignore` 缺 `/resources/admin/node_modules/`（已补）
 
-### P3 待决策
+### P3 待决策（沿用）
 
-13. 是否补 `GET /api/public/stats` 独立公开统计接口
-14. `MailService` 选型（如 PHPMailer）并实现真实发送
-15. 修正生成项目 README 的目录结构漂移（`app/model/`、`app/validate/`、`template/` 未生成）
+14. 是否补 `GET /api/public/stats` 独立公开统计接口
+15. `MailService` 选型（如 PHPMailer）并实现真实发送
+16. ~~修正生成项目 README 的目录结构漂移~~ ✅ 部分自动消解：S2 已真正建出 `app/model/`、`app/validate/`、`app/support/`、`app/exception/`；`template/` 仍未使用，README 描述待 S5 一并校正
+
+### P4 收尾 S2 遗留（无外网也能做）
+
+17. **PHPStan level 7 闸门**（S2/P9 未完成）：需要外网安装 `phpstan/phpstan` + `phpstan/extension-installer` + `thinkphp/phpstan-thinkphp`；配置与 `composer stan` 已就绪，联网后先看是否要出 baseline
+18. `Warning` / `Log` 列表改模型查询并验证软删除过滤（当前仍 `Db::name` + 别名，`__TABLE__.deleted_at` 在别名下的行为需实测）
+19. `app/controller/Index.php`（公开首页）的 4 处 `Db::name` 收敛到模型，统一软删除口径
+20. 商品软删除方案：`uk_products_sku` 与软删除冲突，需定「唯一键含 `deleted_at`」或「删除后 SKU 加后缀」后再开软删除
+21. 非 API 路径（如 `/nope-page`）的 404 页：仍是 HTML 500，属页面侧渲染链问题（TP 错误模板在 PHP 8.3 下的 `htmlentities(NULL)` 告警）
+22. `.backup/*.ps1` 迁移到 `scripts/` 并改为从 `.env` 读凭据（当前脚本内含本机 root 密码，目录已 gitignore）
+
+### P5 架构治理主线（按计划顺序）
+
+23. **S3 前端公共层**：`utils/request.js`、`api/*.api.js`、`constants/enums.js`、`styles/tokens.css`、`components/`、`composables/`、`layouts/`、`views/<模块>/` 内聚（顺带根治 UI 第 8 类问题）
+24. **S4 闸门**：ESLint 边界规则 + stylelint + `php-cs-fixer` + `verify.ps1`（把 php -l / PHPStan / 前端 lint+build / 结构校验 / 冒烟串成一条命令）
+25. **S5 骨架化**：把 S1–S4 成果写进 `src/skeleton.js`（S2 新增的 20+ 文件见 [HINDSIGHT-ARCHIVE-2026-11-27-S2.md](HINDSIGHT-ARCHIVE-2026-11-27-S2.md) 第十二节的清单），并扩展 `validateGeneratedStructure()`

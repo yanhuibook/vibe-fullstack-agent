@@ -127,12 +127,21 @@ TP 错误页模板在 PHP 8.3 下对 `null` 调 `htmlentities()` 触发弃用告
 | 测试脚本污染业务数据 | 只用 id 水位与临时账号；设置用二进制快照还原；结束自检残留 |
 | 用控制台文本搬运数据 | 禁止；中文/特殊字符一律走 UTF-8 SQL 文件或 `mysqldump` |
 
-## 六、下一步（S2 后端公共层）
+## 六、下一步（S2 后端公共层）✅ 已于同日执行
 
-1. `support/ApiCode`、`exception/{ApiException,Handler}`、`BaseController`、`BaseModel`、`BaseService`、`validate/` 基类。
-2. RBAC 节点扫描与鉴权校验（承接 D3），`yc_rule` 节点表开始有数据。
-3. PHPStan level 7 + `phpstan-thinkphp` 闸门；控制器裸 `json([...])` 收敛。
-4. **未匹配 API 路径统一为 JSON 404**：目前 `/api/admin/nope` 会落到默认控制器解析并抛 `Class not found`，渲染成 HTML 500；由 S2 的 `Handler` 统一。
+> 本节四项已全部落地，执行记录见 [HINDSIGHT-ARCHIVE-2026-11-27-S2.md](HINDSIGHT-ARCHIVE-2026-11-27-S2.md)：
+>
+> 1. ✅ `support/ApiCode`、`exception/{ApiException,Handler}`、`BaseController`、`BaseModel`、`BaseService`、`validate/` 基类
+> 2. ✅ RBAC 节点扫描与鉴权校验（`rule:scan` / `rule:grant` / `AdminAuth` 403），`yc_rule` 已有 17 条节点；**并补上了本节未预见的缺口**：三表缺「角色→节点」关联，用迁移 002 补 `yc_role_rule`
+> 3. ✅ 控制器裸 `json([...])` 由 34 处收敛为 0；⚠️ PHPStan level 7 **未跑**（本机无外网），配置已就绪
+> 4. ✅ 未匹配 API 路径统一为 JSON 404（`/api/admin/nope` → `{"code":404,"message":"接口不存在"}`）
+>
+> 原始待办（保留供对照）：
+>
+> 1. `support/ApiCode`、`exception/{ApiException,Handler}`、`BaseController`、`BaseModel`、`BaseService`、`validate/` 基类。
+> 2. RBAC 节点扫描与鉴权校验（承接 D3），`yc_rule` 节点表开始有数据。
+> 3. PHPStan level 7 + `phpstan-thinkphp` 闸门；控制器裸 `json([...])` 收敛。
+> 4. **未匹配 API 路径统一为 JSON 404**：目前 `/api/admin/nope` 会落到默认控制器解析并抛 `Class not found`，渲染成 HTML 500；由 S2 的 `Handler` 统一。
 
 ## 七、安全与凭据
 
@@ -145,4 +154,4 @@ TP 错误页模板在 PHP 8.3 下对 `null` 调 `htmlentities()` 触发弃用告
 
 - 新增：本归档。
 - 更新：`dev_log.md`（第七、第八阶段）、`project_steps.md`（阶段 H、P0 第 6 项）、`RUNBOOK-yun_cang.md`（6.7、6.8、6.9、步骤 4、日常维护）、`README.md`（骨架表、校验清单、测试数）、`src/skeleton.js`、`test/skeleton.test.js`。
-- 关联：`ARCHITECTURE-PLAN-2026-11-27.md`（S1 已执行，S2–S5 待做）。
+- 关联：`ARCHITECTURE-PLAN-2026-11-27.md`（S1 已执行，S2–S5 待做）；S2 已于同日执行完毕，见 [HINDSIGHT-ARCHIVE-2026-11-27-S2.md](HINDSIGHT-ARCHIVE-2026-11-27-S2.md)。

@@ -297,3 +297,65 @@ v0.8（P1 补丁：路由优先级 + 库存调整）
 - 更新 `src/skeleton.js`、`test/skeleton.test.js`：骨架与校验规则
 
 
+
+---
+
+## 日期
+2026-11-27
+
+## 版本
+v0.8（S2 补丁：后端公共层）
+
+## 已完成工作
+
+### 第九阶段：S2 后端公共层（P1–P8 完成，P9 环境阻塞）
+
+按 [HANDOFF-S2-2026-11-27.md](HANDOFF-S2-2026-11-27.md) 从 P1 起逐个补丁执行，每个补丁做完立即验收，不通过不进下一个。完整复盘见 **[HINDSIGHT-ARCHIVE-2026-11-27-S2.md](HINDSIGHT-ARCHIVE-2026-11-27-S2.md)**。
+
+| 补丁 | 内容 | 验收 |
+|---|---|---|
+| P1 | `ApiCode` / `ApiException` / `Handler` / `app/provider.php` | `/api/admin/nope` → JSON 404；异常 → JSON 500 |
+| P2 | `BaseController`：`success/fail/paginate` | 反射断言 + 7 个输出形态用例 |
+| P3 | `BaseModel` + 6 模型 | 软删除三态 / `withTrashed` / 类型转换，事务回滚后数据一致 |
+| P4 | `BaseValidate` + `ProductValidate` + `SettingsValidate` | 与旧实现逐条对照 23/23 |
+| P5 | `BaseService`（DSL + 事务模板）+ `ProductService` | `Product::index()` 16 个组合输出字节级一致 |
+| P6a–d | Auth / Product / Settings / Category·Dashboard·Warning·Log | 每补丁：路由 25/25 + S1 冒烟 15/15 + 构建通过 |
+| P7 | `app/common.php`（`now()`、`is_blank()`） | TP8 自动 include，无需 dump-autoload |
+| P8 | `RuleNode` / `PermissionService` / `rule:scan` / `rule:grant` / `AdminAuth` 权限校验 / `AdminBootstrap` 绑 super / **补 `yc_role_rule` 表** | RBAC 运行时 15/15，节点 17 条 |
+| P9 | PHPStan level 7 | ❌ 本机无外网（packagist + 腾讯云镜像 TLS 均失败），配置已就绪 |
+
+**关键发现与偏离（都已写进归档）**
+
+1. **TP8 不读 `config/app.php` 的 `exception_handle`**（TP5 约定）：要换全局异常处理器必须绑到 `app/provider.php`。首次照文档配置后仍返回 HTML 500。
+2. **`json()` 第 4 参是数组选项不是 encode flags**：误传 `JSON_UNESCAPED_UNICODE` 触发 `TypeError`，表现为空白 500 HTML。
+3. **RBAC 计划缺一张表**：S1 的三表没有 `role ↔ rule` 关联，交接文档描述的判定链在 role→rule 断开。新增迁移 `002_rbac_role_rule.sql`（纯新增，已备份后执行），并同步 `schema.sql`（9 → 10 表）。
+4. **商品删除保持物理删除**：`uk_products_sku` 与软删除冲突（删除后无法用同一 SKU 重建），软删除要配合唯一索引策略另做补丁。
+5. **冒烟脚本必须跟着 RBAC 改**：临时管理员用 SQL 创建，RBAC 上线后必须同时写 `yc_admin_role` 绑 super，否则全部 403。
+
+**数据面**：`admins 1、role 1、admin_role 1、rule 17、role_rule 0、categories 6、products 2、settings 8、logs 22、movements 0`；库存 5/20 未变；探针账号/角色/授权残留 0。
+
+## 测试
+
+- 生成器测试逐文件：**50 条、49 通过、0 失败、1 跳过**
+- 路由回归 25/25、S1 冒烟 15/15（真实 HTTP）
+- 前端 `npm run build` 通过
+- `php -l` 51 文件 0 错误；`app/` 下 40 个类全部可加载
+- 业务控制器裸 `return json([`：**0**（原 34）
+- `validate-project.js` 结构校验通过
+
+## 已知问题（留给后面阶段）
+
+1. **PHPStan 未跑**：需要外网安装 `phpstan/phpstan` + `thinkphp/phpstan-thinkphp`；配置与 `composer stan` 已就绪。
+2. 非 API 路径（如 `/nope-page`）仍是 HTML 500 而非 404 页：属页面侧，不在 S2 范围。
+3. 软删除只覆盖模型查询；`Db::name()` 仍不感知 `deleted_at`（S4 起可考虑统一收口）。
+4. `app/controller/Index.php` 仍是 `Db::name` 直查（公开首页，未纳入 P6 范围）。
+
+## 文档
+
+- 新增 **`HINDSIGHT-ARCHIVE-2026-11-27-S2.md`**：本轮归档（P1–P9 逐项记录、踩坑、缺口、验证证据、S3/S5 交接）
+- 更新 `ARCHITECTURE-PLAN-2026-11-27.md`：S2 标题标 ✅
+- 更新 `project_steps.md`：阶段 H 的 S2 勾选
+- 更新 `RUNBOOK-yun_cang.md`：新增 6.10（后端公共层用法与 RBAC 运维），日常维护表补 `rule:scan` / `rule:grant` / `composer stan`
+- 更新 `README.md`：公共层文件清单（提醒 S5 尚未并入骨架）
+- 更新 `HANDOFF-S2-2026-11-27.md`：第七节 DoD 逐条勾选回填实测结果（9/10，PHPStan 未执行）、文末补执行结果与偏离摘要
+- 回填交叉引用：`HINDSIGHT-ARCHIVE-2026-11-27-S1-AND-ROUTE.md`（第六节四项标已完成、第八节关联行）、`HINDSIGHT-ARCHIVE-2026-11-27-INIT-MODE-FIX.md`（第七节续：目录漂移部分消解、JSON 404 已修）、`project_log.md`（追加 S2 条目）、`project_steps.md`（重排「下一步计划」为 P0–P5）

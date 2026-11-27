@@ -388,6 +388,52 @@ app/controller/api/Auth.php、app/middleware/AdminAuth.php、app/service/Operati
 
 > 完整复盘（现象、根因推导、诊断踩坑、教训与 S2 交接）见 [HINDSIGHT-ARCHIVE-2026-11-27-S1-AND-ROUTE.md](HINDSIGHT-ARCHIVE-2026-11-27-S1-AND-ROUTE.md)。
 
+### 6.10 已实施：S2 后端公共层（2026-11-27）
+
+后端现在有一层公共基类，新增接口**不要**再手写响应与分页。
+
+| 想做什么 | 用什么 |
+|---|---|
+| 返回成功 / 失败 | `app\BaseController` 的 `$this->success($data, $msg)` / `$this->fail($code, $msg)` |
+| 列表分页 | `$this->success($this->paginate($query, 每页条数, $request))`（返回 `list/total/page/page_size`） |
+| 带筛选/排序的列表 | 写 `app\service\XxxService extends BaseService`，只声明 `$filterRules`/`$sortRules`/`$defaultSort` |
+| 事务 | `(new XxxService())->transaction(function () { ... })`（异常归一为 500 JSON 并记原始日志） |
+| 抛业务错误 | `throw new ApiException(ApiCode::PARAM_REQUIRED, '文案')` 或 `ApiException::notFound('商品不存在')` |
+| 校验入参 | `app\validate\XxxValidate`（失败抛 422，`{"code":422,"message":"..."}`） |
+| 读当前登录管理员 | `$this->currentAdminId()` / `$this->currentAdminName()`（不要在控制器里直接 `Session::get`） |
+| 全局函数 | `app/common.php`：`now()`、`is_blank()`（只放真正通用的，别堆业务） |
+
+**响应契约（不要改）**：前端 `resources/admin/src/api.js` 只看 `res.ok` 与 `data`，失败读 `message`；历史 `code` 取值 = HTTP 状态码（401/403/404/419/422）。新错误码用 `ApiCode` 的 1xxx/2xxx/3xxx 分段，HTTP 状态由 `ApiCode::httpStatus()` 推导。
+
+**异常处理**：`app/exception/Handler.php` 已通过 **`app/provider.php`** 注册（TP8 不读 `config/app.php` 的 `exception_handle`，那是 TP5 的键）。API 请求一律 JSON：未匹配路径 404、业务异常按携带状态、其它 500（生产环境不回显细节）。
+
+**RBAC 运维**（S2/P8 上线）：
+
+| 操作 | 命令 |
+|---|---|
+| 扫描控制器生成/更新权限节点 | `php think rule:scan`（`index` 记 menu，其它记 action；`@auth false` 跳过） |
+| 给角色授权节点 | `php think rule:grant <role-code> <node[,node…]\|all>` |
+| 给管理员绑角色 | 直接写 `yc_admin_role`，或用 `PermissionService::bindRole()` |
+
+- 判定链：`admin_id → yc_admin_role → yc_role → yc_role_rule → yc_rule`；**超管（`yc_role.code='super'`）直接放行**，不看节点。
+- `yc_role_rule` 是 S2 用 `database/migrations/002_rbac_role_rule.sql` 补的（S1 三表缺这一环）。
+- 中间件顺序：未登录 401 → 写操作 CSRF 419 → 无权限 403。
+- **新增接口记得跑一次 `php think rule:scan`**，否则非超管角色拿不到该节点（超管不受影响）。
+- 不需要权限的登录后接口在方法 docblock 写 `@auth false`（参考 `Auth::me`）。
+- `php think admin:bootstrap` 创建管理员后会自动绑定 super 角色。
+
+**软删除注意**：模型查询自动排除 `deleted_at` 非空的行；`Db::name()` 查询**不会**过滤。商品删除目前仍是物理删除（`uk_products_sku` 与软删除冲突，见归档第十一节）。
+
+**PHPStan**（本机无外网时不可用）：
+
+```powershell
+cd D:\software\yun_cang
+composer require --dev phpstan/phpstan phpstan/extension-installer thinkphp/phpstan-thinkphp
+composer stan     # 等价于 vendor\bin\phpstan analyse（level 7 / phpVersion 80100 / paths app,config,route）
+```
+
+> 完整复盘见 [HINDSIGHT-ARCHIVE-2026-11-27-S2.md](HINDSIGHT-ARCHIVE-2026-11-27-S2.md)。
+
 
 ---
 
@@ -402,4 +448,7 @@ app/controller/api/Auth.php、app/middleware/AdminAuth.php、app/service/Operati
 | 清运行时缓存 | 删除 `runtime\` 目录下对应子目录 |
 | 查看表结构 | `mysql -u yun_cang_app -p yun_cang -e "SHOW TABLES;"`；看单表定义用 `-e "SHOW CREATE TABLE yc_settings;"`（表名带 `yc_` 前缀） |
 | 执行结构迁移 | `php think migrate`（应用 `database/migrations/*.sql`，已应用记录见 `database/migrations/applied.log`） |
+| 扫描权限节点 | `php think rule:scan`（改完 `app/controller/api/*.php` 后跑一次） |
+| 给角色授权 | `php think rule:grant <role-code> <node[,node…]\|all>` |
+| 后端静态检查 | `composer stan`（需先装 phpstan，见 6.10） |
 | 手工跑邮件/清理 | `php think low-stock:email` / `php think operation-log:cleanup` |

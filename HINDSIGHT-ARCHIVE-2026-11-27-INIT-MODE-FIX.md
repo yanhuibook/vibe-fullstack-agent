@@ -346,3 +346,11 @@ node scripts/validate-project.js ../yun_cang
 2. **表结构 → 已完成治理（S1）**：6 张表加 `yc_` 前缀、主键升 `BIGINT UNSIGNED`、补 `deleted_at`、`products.status` 由 ENUM 改 `VARCHAR(20)`、新增 RBAC 三表（共 9 表），并引入 `database/migrations` + `php think migrate`。
 3. 仍待处理：生成项目 README 的目录结构漂移、`/api/public/stats` 独立接口、`MailService` 真实发送——与本文档原结论一致。
 
+### 后续进展（续）：S2 后端公共层
+
+同日继续执行 S2（见 [HINDSIGHT-ARCHIVE-2026-11-27-S2.md](HINDSIGHT-ARCHIVE-2026-11-27-S2.md)），与本文档相关的几点：
+
+1. **生成项目 README 的目录漂移已自动消解一半**：S2 真正建出了 `app/model/`、`app/validate/`、`app/support/`、`app/exception/` 与 `app/BaseController.php`，README 里原本「生成了但没落盘」的目录现在确实存在（`template/` 仍未使用）。
+2. **未匹配 API 路径返回 HTML 500 的缺陷已修**：由 `app/exception/Handler.php` 统一成 JSON 404/500。
+3. 仍待处理：`/api/public/stats` 独立接口、`MailService` 真实发送、PHPStan level 7（本机无外网，未跑）。
+

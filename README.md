@@ -144,14 +144,33 @@ node scripts/validate-project.js ../yun_cang
 
 自测：`node test/skeleton.test.js`（15 条），全部测试共 50 条（49 通过，1 条 git 集成在沙箱内跳过）。
 
+### 4. 后端公共层（S2 已落地，**尚未并入骨架**）
+
+`D:\software\yun_cang` 现在自带一层后端公共层（响应/异常/模型/校验/服务/RBAC）。⚠️ **S5 才会写进 `src/skeleton.js`**：在那之前，新生成的项目**不会**自带这些文件，仍需按 S2 的方式补。
+
+| 路径 | 职责 |
+|---|---|
+| `app/BaseController.php` | `success()` / `fail()` / `paginate()` / `currentAdminId()` |
+| `app/provider.php` | 容器绑定（全局异常处理器走这里，TP8 不读 `config/app.php` 的 `exception_handle`） |
+| `app/exception/{ApiException,Handler}.php` | 业务异常 + 全局 JSON 异常输出（API 未匹配路径 404） |
+| `app/support/{ApiCode,RuleNode}.php` | 错误码分段 / 权限节点命名与 `@auth` 注解解析 |
+| `app/model/` | `BaseModel` + 6 个模型（软删除、时间戳、类型转换） |
+| `app/validate/` | `BaseValidate` + `ProductValidate` / `SettingsValidate` |
+| `app/service/{BaseService,ProductService,PermissionService}.php` | 列表 DSL + 事务模板 / 商品域规则 / RBAC 判定 |
+| `app/command/{RuleScan,RuleGrant}.php` | `php think rule:scan` / `rule:grant` |
+| `app/common.php` | 全局函数（`now()`、`is_blank()`） |
+| `phpstan.neon` | level 7 / phpVersion 80100（本机无外网，尚未安装 PHPStan） |
+| `database/migrations/002_rbac_role_rule.sql` | 补 S1 遗漏的「角色-节点」关联表 |
+
 ## 文档导航
 
 | 文档 | 用途 |
 |---|---|
-| [ARCHITECTURE-PLAN-2026-11-27.md](ARCHITECTURE-PLAN-2026-11-27.md) | **架构治理计划**：表前缀、基类体系、前端公共层、闸门、骨架化（S1–S5）。新会话从这里开始 |
-| [HANDOFF-S2-2026-11-27.md](HANDOFF-S2-2026-11-27.md) | **S2 交接**：新会话开场白、现状自检、S2 任务拆解（P1–P9）、环境与沙箱限制 |
-| [RUNBOOK-yun_cang.md](RUNBOOK-yun_cang.md) | 落地手册：环境、七步初始化、报错对照表、修复详情 |
+| [ARCHITECTURE-PLAN-2026-11-27.md](ARCHITECTURE-PLAN-2026-11-27.md) | **架构治理计划**：表前缀、基类体系、前端公共层、闸门、骨架化（S1–S5，S1/S2 已完成） |
+| [HANDOFF-S2-2026-11-27.md](HANDOFF-S2-2026-11-27.md) | S2 交接与执行结果（开场白、任务拆解、环境限制、实测偏离） |
+| [HINDSIGHT-ARCHIVE-2026-11-27-S2.md](HINDSIGHT-ARCHIVE-2026-11-27-S2.md) | **S2 后端公共层**复盘（P1–P9 逐项、两处 TP8 版本坑、RBAC 缺表、验证证据） |
+| [RUNBOOK-yun_cang.md](RUNBOOK-yun_cang.md) | 落地手册：环境、七步初始化、报错对照表、修复详情（6.10 为公共层用法） |
 | [project_steps.md](project_steps.md) | 进度勾选清单 |
-| [dev_log.md](dev_log.md) | 开发日志（第一至第八阶段） |
+| [dev_log.md](dev_log.md) | 开发日志（第一至第九阶段） |
 | [HINDSIGHT-ARCHIVE-2026-11-27-INIT-MODE-FIX.md](HINDSIGHT-ARCHIVE-2026-11-27-INIT-MODE-FIX.md) | 首次生成与 8 类故障复盘 |
 | [HINDSIGHT-ARCHIVE-2026-11-27-S1-AND-ROUTE.md](HINDSIGHT-ARCHIVE-2026-11-27-S1-AND-ROUTE.md) | **S1 数据库治理 + 路由缺陷修复**复盘（表前缀/软删除/迁移机制、路由前缀匹配缺陷） |
