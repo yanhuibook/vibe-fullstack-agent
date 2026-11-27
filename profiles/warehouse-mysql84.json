@@ -274,7 +274,7 @@
       { "key": "low_stock_email_send_time", "type": "string", "default": "09:00", "description": "local time HH:mm at which the daily low-stock email is sent" }
     ],
     "save": "POST /api/admin/settings persists the submitted keys; validate types and ranges before writing",
-    "restore_defaults": "POST /api/admin/settings/restore-defaults resets every settings row to its documented default; requires a second confirmation; logs the action to operation_logs",
+    "restore_defaults": "POST /api/admin/settings/restore-defaults resets every settings row to its documented default; requires a second explicit confirmation; logs the action to operation_logs",
     "read": "GET /api/admin/settings returns the current values with their defaults for the restore-defaults UI"
   },
   "scheduled_tasks": [

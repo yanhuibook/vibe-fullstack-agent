@@ -3,9 +3,9 @@ import path from 'node:path';
 import { requestPlan } from './provider.js';
 import { formatUsageReport } from './usage.js';
 
-const MAX_FILES = 40;
+const MAX_FILES = 200;
 const MAX_FILE_BYTES = 80_000;
-const MAX_TOTAL_BYTES = 420_000;
+const MAX_TOTAL_BYTES = 200_000_000;
 const ALLOWED_EXTS = new Set(['.php', '.json', '.js', '.mjs', '.cjs', '.vue', '.css', '.scss', '.html', '.md', '.sql', '.xml', '.yml', '.yaml', '.txt']);
 const ALLOWED_DOTFILES = new Set(['.gitignore', '.env.example']);
 const BLOCKED_PARTS = new Set(['.git', 'node_modules', 'vendor', 'dist', 'build', 'coverage']);

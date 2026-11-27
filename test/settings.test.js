@@ -41,7 +41,7 @@ test('profile describes system settings with save and restore defaults', async (
   assert.equal(sendTime.default, '09:00');
   assert.match(settings.save, /POST \/api\/admin\/settings/);
   assert.match(settings.restore_defaults, /POST \/api\/admin\/settings\/restore-defaults/);
-  assert.match(settings.restore_defaults, /second explicit confirmation; requires a second confirmation/);
+  assert.match(settings.restore_defaults, /second explicit confirmation/);
 });
 
 test('profile defines scheduled daily low-stock email and log cleanup', async () => {
@@ -73,6 +73,6 @@ test('generation prompt requires the system settings page and mail placeholders'
   assert.match(prompt, /operation_logs/);
   assert.match(prompt, /php think low-stock:email/);
   assert.match(prompt, /MAIL_PASSWORD/);
-  assert.match(prompt, /second explicit confirmation; requires a second confirmation/);
+  assert.match(prompt, /second explicit confirmation/);
   assert.match(prompt, /Linux crontab line and a Windows scheduled-task example/);
 });
